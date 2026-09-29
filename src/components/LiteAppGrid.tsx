@@ -8,7 +8,7 @@ type Props = {
   apps: LiteApp[];
   onOpenApp: (app: LiteApp) => void;
   onLongPressApp?: (app: LiteApp) => void;
-  onAddApp: () => void;
+  onAddApp?: () => void;
 };
 
 export function LiteAppGrid({
@@ -27,7 +27,7 @@ export function LiteAppGrid({
           onLongPress={() => onLongPressApp?.(app)}
         />
       ))}
-      <AddAppTile onPress={onAddApp} />
+      {onAddApp ? <AddAppTile onPress={onAddApp} /> : null}
     </View>
   );
 }

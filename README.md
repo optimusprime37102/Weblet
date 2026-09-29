@@ -15,10 +15,37 @@ Turn websites into lightweight apps. Built with React Native + Expo.
 
 ```bash
 npm install
-npx expo start
+
+# Expo Go
+npm run start:expo
+
+# Debug build on emulator (non–Expo Go — supports home-screen pin)
+npm run android
+
+# Debug build on a USB / wireless device
+npm run android:device
+
+# Metro for an installed development build
+npm run start:dev-client
 ```
 
-Then press `a` for Android, `i` for iOS, or scan the QR code with Expo Go.
+### Android packages (APK / AAB)
+
+Local builds need Android SDK. Cloud builds need `npx eas-cli@latest login`.
+
+| Script | Output |
+|--------|--------|
+| `npm run apk:debug` | Debug **APK** (local) |
+| `npm run apk:release` | Release **APK** (local) |
+| `npm run aab` | Play Store **.aab** (local) |
+| `npm run apk:debug:cloud` | Debug APK (EAS cloud) |
+| `npm run apk:release:cloud` | Release APK (EAS cloud) |
+| `npm run aab:cloud` | AAB (EAS cloud) |
+| `npm run build:dev` | Dev-client APK for physical devices |
+
+### Home screen shortcuts (Android)
+
+Pinning Lite Apps to the home screen needs a **development build** (`npm run android`). Expo Go cannot pin shortcuts.
 
 ## Structure
 

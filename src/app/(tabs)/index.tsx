@@ -1,7 +1,5 @@
 import React, { useRef, useState } from 'react';
 import {
-  Alert,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -9,20 +7,31 @@ import {
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { Header } from '@/components/Header';
 import { SearchBar } from '@/components/SearchBar';
 import { LiteAppGrid } from '@/components/LiteAppGrid';
+import { CreateFab } from '@/components/CreateFab';
+import { HomeScreenDialog } from '@/components/HomeScreenDialog';
+import { ManageLiteAppDialog } from '@/components/ManageLiteAppDialog';
 import { useApp } from '@/context/AppContext';
-import { radius, spacing, typography } from '@/theme';
+import { pinLiteAppToHome } from '@/services/homeShortcut';
+import { spacing, typography } from '@/theme';
 import { normalizeUrl } from '@/utils/url';
 import type { LiteApp } from '@/types';
 
 export default function LiteAppsScreen() {
-  const { colors, liteApps, removeLiteApp } = useApp();
+  const {
+    colors,
+    liteApps,
+    removeLiteApp,
+    pendingHomeShortcut,
+    setPendingHomeShortcut,
+  } = useApp();
   const router = useRouter();
   const searchRef = useRef<TextInput>(null);
   const [query, setQuery] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [manageApp, setManageApp] = useState<LiteApp | null>(null);
 
   const openBrowser = (url: string, title?: string) => {
     const target = normalizeUrl(url);
@@ -33,20 +42,7 @@ export default function LiteAppsScreen() {
     });
   };
 
-  const handleLongPress = (app: LiteApp) => {
-    Alert.alert(app.name, 'Manage this Lite App', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Open',
-        onPress: () => openBrowser(app.url, app.name),
-      },
-      {
-        text: 'Remove',
-        style: 'destructive',
-        onPress: () => removeLiteApp(app.id),
-      },
-    ]);
-  };
+  const isEmpty = liteApps.length === 0;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
@@ -62,40 +58,69 @@ export default function LiteAppsScreen() {
       />
 
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          isEmpty && styles.contentEmpty,
+        ]}
         showsVerticalScrollIndicator={false}
       >
-        <View
-          style={[
-            styles.panel,
-            {
-              backgroundColor: colors.surfaceSolid,
-              borderColor: colors.border,
-              shadowColor: colors.shadow,
-            },
-          ]}
-        >
-          <View style={styles.panelHeader}>
-            <Text style={[styles.panelTitle, { color: colors.text }]}>
-              Your Lite Apps
-            </Text>
-            <Pressable
-              onPress={() => router.push('/add-app')}
-              hitSlop={8}
-              style={[styles.closeHint, { backgroundColor: colors.surfaceMuted }]}
-            >
-              <Ionicons name="add" size={16} color={colors.textSecondary} />
-            </Pressable>
-          </View>
+        <Text style={[styles.title, { color: colors.text }]}>Lite Apps</Text>
 
+        {isEmpty ? (
+          <View style={styles.emptyBody}>
+            <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>
+              Tap Create to add your first Lite App
+            </Text>
+          </View>
+        ) : (
           <LiteAppGrid
             apps={liteApps}
             onOpenApp={(app) => openBrowser(app.url, app.name)}
-            onLongPressApp={handleLongPress}
-            onAddApp={() => router.push('/add-app')}
+            onLongPressApp={setManageApp}
           />
-        </View>
+        )}
       </ScrollView>
+
+      <CreateFab
+        open={menuOpen}
+        onOpenChange={setMenuOpen}
+        onCreateOwn={() => router.push('/add-app')}
+        onReadyMade={() => router.push('/ready-made')}
+      />
+
+      <ManageLiteAppDialog
+        app={manageApp}
+        visible={!!manageApp}
+        onCancel={() => setManageApp(null)}
+        onOpen={() => {
+          if (!manageApp) return;
+          const app = manageApp;
+          setManageApp(null);
+          openBrowser(app.url, app.name);
+        }}
+        onAddToHomeScreen={() => {
+          if (!manageApp) return;
+          setPendingHomeShortcut(manageApp);
+          setManageApp(null);
+        }}
+        onRemove={() => {
+          if (!manageApp) return;
+          removeLiteApp(manageApp.id);
+          setManageApp(null);
+        }}
+      />
+
+      <HomeScreenDialog
+        app={pendingHomeShortcut}
+        visible={!!pendingHomeShortcut}
+        onCancel={() => setPendingHomeShortcut(null)}
+        onAddAutomatically={async () => {
+          if (pendingHomeShortcut) {
+            await pinLiteAppToHome(pendingHomeShortcut);
+          }
+          setPendingHomeShortcut(null);
+        }}
+      />
     </View>
   );
 }
@@ -105,35 +130,27 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.xxxl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xxxl + 80,
   },
-  panel: {
-    marginHorizontal: spacing.lg,
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingTop: spacing.lg,
-    paddingBottom: spacing.sm,
-    shadowOpacity: 0.08,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 3,
+  contentEmpty: {
+    flexGrow: 1,
   },
-  panelHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  title: {
+    ...typography.brand,
+    fontSize: 28,
     paddingHorizontal: spacing.lg,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.lg,
   },
-  panelTitle: {
-    ...typography.title,
-  },
-  closeHint: {
-    width: 28,
-    height: 28,
-    borderRadius: radius.full,
+  emptyBody: {
+    flex: 1,
+    minHeight: 220,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: spacing.xxl,
+  },
+  emptyHint: {
+    ...typography.body,
+    textAlign: 'center',
   },
 });

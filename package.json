@@ -4,11 +4,16 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "android": "expo run:android",
+    "android:device": "expo run:android --device",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "apk:debug": "npx eas-cli@latest build -p android --profile apk-debug --local",
+    "apk:release": "npx eas-cli@latest build -p android --profile apk-release --local",
+    "aab": "npx eas-cli@latest build -p android --profile production --local",
   },
   "dependencies": {
+    "@aun-abbas/expo-pin-shortcut": "^0.2.0",
     "@expo/vector-icons": "^15.1.1",
     "@react-native-async-storage/async-storage": "2.2.0",
     "babel-preset-expo": "~57.0.0",

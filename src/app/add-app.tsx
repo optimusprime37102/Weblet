@@ -23,7 +23,7 @@ import {
 import { radius, spacing, typography } from '@/theme';
 
 export default function AddAppScreen() {
-  const { colors, addLiteApp } = useApp();
+  const { colors, addLiteApp, setPendingHomeShortcut } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [urlInput, setUrlInput] = useState('');
@@ -52,10 +52,8 @@ export default function AddAppScreen() {
         url: previewUrl,
       });
       if (app) {
-        router.replace({
-          pathname: '/browser',
-          params: { url: app.url, title: app.name },
-        });
+        setPendingHomeShortcut(app);
+        router.back();
       }
     } finally {
       setSaving(false);

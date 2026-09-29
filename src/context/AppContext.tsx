@@ -10,7 +10,6 @@ import { useColorScheme } from 'react-native';
 import type { AppSettings, Bookmark, LiteApp, ThemeMode } from '@/types';
 import { lightColors, darkColors, type AppColors } from '@/theme';
 import { storage } from '@/services/storage';
-import { createSeedLiteApps } from '@/services/seed';
 import { getFaviconUrl } from '@/services/favicon';
 import { createId } from '@/utils/id';
 import { getDisplayNameFromUrl, normalizeUrl } from '@/utils/url';
@@ -31,6 +30,8 @@ type AppContextValue = {
   clearAllData: () => Promise<void>;
   drawerOpen: boolean;
   setDrawerOpen: (open: boolean) => void;
+  pendingHomeShortcut: LiteApp | null;
+  setPendingHomeShortcut: (app: LiteApp | null) => void;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -42,23 +43,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ themeMode: 'system' });
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [pendingHomeShortcut, setPendingHomeShortcut] = useState<LiteApp | null>(
+    null
+  );
 
   useEffect(() => {
     let mounted = true;
 
     (async () => {
-      const [apps, marks, savedSettings, seeded] = await Promise.all([
+      const [apps, marks, savedSettings, clearedSeeded] = await Promise.all([
         storage.getLiteApps(),
         storage.getBookmarks(),
         storage.getSettings(),
-        storage.getSeeded(),
+        storage.getClearedSeededApps(),
       ]);
 
+      // One-time wipe of old starter / leftover apps so first open is empty.
       let nextApps = apps;
-      if (!seeded && apps.length === 0) {
-        nextApps = createSeedLiteApps();
+      if (!clearedSeeded) {
+        nextApps = [];
         await storage.setLiteApps(nextApps);
-        await storage.setSeeded();
+        await storage.setClearedSeededApps();
       }
 
       if (!mounted) return;
@@ -175,12 +180,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const clearAllData = useCallback(async () => {
     await storage.clearAll();
-    const seeded = createSeedLiteApps();
-    await storage.setLiteApps(seeded);
-    await storage.setSeeded();
-    setLiteApps(seeded);
+    setLiteApps([]);
     setBookmarks([]);
     setSettings({ themeMode: 'system' });
+    setPendingHomeShortcut(null);
   }, []);
 
   const value = useMemo<AppContextValue>(
@@ -200,6 +203,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearAllData,
       drawerOpen,
       setDrawerOpen,
+      pendingHomeShortcut,
+      setPendingHomeShortcut,
     }),
     [
       ready,
@@ -216,6 +221,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       removeBookmark,
       clearAllData,
       drawerOpen,
+      pendingHomeShortcut,
     ]
   );
 

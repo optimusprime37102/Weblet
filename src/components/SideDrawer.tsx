@@ -16,7 +16,8 @@ const LINKS = [
   { label: 'Lite Apps', icon: 'apps-outline' as const, href: '/(tabs)' },
   { label: 'Bookmarks', icon: 'bookmark-outline' as const, href: '/(tabs)/bookmarks' },
   { label: 'Settings', icon: 'settings-outline' as const, href: '/(tabs)/settings' },
-  { label: 'Add Lite App', icon: 'add-circle-outline' as const, href: '/add-app' },
+  { label: 'Ready-made', icon: 'grid-outline' as const, href: '/ready-made' },
+  { label: 'Create Your Own', icon: 'add-circle-outline' as const, href: '/add-app' },
 ];
 
 export function SideDrawer() {

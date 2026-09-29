@@ -33,7 +33,7 @@ export default function SettingsScreen() {
   const confirmClear = () => {
     Alert.alert(
       'Reset Weblet?',
-      'This clears bookmarks and restores the default Lite Apps.',
+      'This clears all Lite Apps and bookmarks.',
       [
         { text: 'Cancel', style: 'cancel' },
         {

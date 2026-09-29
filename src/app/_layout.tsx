@@ -50,6 +50,12 @@ function RootNavigator() {
             animation: 'slide_from_bottom',
           }}
         />
+        <Stack.Screen
+          name="ready-made"
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
       </Stack>
       <SideDrawer />
     </>

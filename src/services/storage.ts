@@ -6,6 +6,7 @@ const KEYS = {
   bookmarks: '@weblet/bookmarks',
   settings: '@weblet/settings',
   seeded: '@weblet/seeded',
+  clearedSeededApps: '@weblet/clearedSeededApps',
 } as const;
 
 async function readJson<T>(key: string, fallback: T): Promise<T> {
@@ -34,12 +35,18 @@ export const storage = {
   setSeeded: async () => {
     await AsyncStorage.setItem(KEYS.seeded, '1');
   },
+  getClearedSeededApps: async () =>
+    (await AsyncStorage.getItem(KEYS.clearedSeededApps)) === '1',
+  setClearedSeededApps: async () => {
+    await AsyncStorage.setItem(KEYS.clearedSeededApps, '1');
+  },
   clearAll: async () => {
     await AsyncStorage.multiRemove([
       KEYS.liteApps,
       KEYS.bookmarks,
       KEYS.settings,
       KEYS.seeded,
+      KEYS.clearedSeededApps,
     ]);
   },
 };
