@@ -11,7 +11,6 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { HomeScreenDialog } from '@/components/HomeScreenDialog';
 import { useApp } from '@/context/AppContext';
 import {
   getCatalogSections,
@@ -20,15 +19,13 @@ import {
 } from '@/services/catalog';
 import { pinLiteAppToHome } from '@/services/homeShortcut';
 import { radius, spacing, typography } from '@/theme';
-import type { LiteApp } from '@/types';
+import { showToast } from '@/utils/toast';
 
 export default function ReadyMadeScreen() {
   const { colors, addLiteApp } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
-  const [shortcutApp, setShortcutApp] = useState<LiteApp | null>(null);
-  const [dialogVisible, setDialogVisible] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
 
   const sections = useMemo(() => getCatalogSections(query), [query]);
@@ -39,24 +36,12 @@ export default function ReadyMadeScreen() {
     try {
       const app = await addLiteApp({ name: item.name, url: item.url });
       if (!app) return;
-      setShortcutApp(app);
-      setDialogVisible(true);
+      showToast(`${app.name} added`);
+      await pinLiteAppToHome(app);
+      router.back();
     } finally {
       setAddingId(null);
     }
-  };
-
-  const closeDialog = () => {
-    setDialogVisible(false);
-    setShortcutApp(null);
-    router.back();
-  };
-
-  const handleAddToHome = async () => {
-    if (shortcutApp) {
-      await pinLiteAppToHome(shortcutApp);
-    }
-    closeDialog();
   };
 
   return (
@@ -128,13 +113,6 @@ export default function ReadyMadeScreen() {
             busyId={addingId}
           />
         )}
-      />
-
-      <HomeScreenDialog
-        app={shortcutApp}
-        visible={dialogVisible}
-        onCancel={closeDialog}
-        onAddAutomatically={handleAddToHome}
       />
     </View>
   );

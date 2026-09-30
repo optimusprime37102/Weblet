@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Image,
   Pressable,
@@ -10,24 +10,35 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { LiteApp } from '@/types';
+import type { MenuAnchor } from '@/components/ManageLiteAppDialog';
 import { radius, spacing, typography } from '@/theme';
 import { useApp } from '@/context/AppContext';
 
 type Props = {
   app: LiteApp;
   onPress: () => void;
-  onLongPress?: () => void;
+  onLongPress?: (anchor: MenuAnchor) => void;
   style?: StyleProp<ViewStyle>;
 };
 
 export function LiteAppIcon({ app, onPress, onLongPress, style }: Props) {
   const { colors } = useApp();
   const [failed, setFailed] = useState(false);
+  const itemRef = useRef<View>(null);
+
+  const handleLongPress = () => {
+    if (!onLongPress) return;
+    itemRef.current?.measureInWindow((x, y, width, height) => {
+      onLongPress({ x, y, width, height });
+    });
+  };
 
   return (
     <Pressable
+      ref={itemRef}
       onPress={onPress}
-      onLongPress={onLongPress}
+      onLongPress={handleLongPress}
+      delayLongPress={280}
       style={({ pressed }) => [styles.item, style, pressed && styles.pressed]}
       accessibilityRole="button"
       accessibilityLabel={`Open ${app.name}`}

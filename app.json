@@ -4,23 +4,42 @@
     "slug": "Weblet",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/app-icon.png",
     "scheme": "weblet",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.weblet.app"
+      "bundleIdentifier": "com.weblet.app",
+      "icon": "./assets/app-icon.png"
     },
     "android": {
+      "icon": "./assets/app-icon.png",
       "adaptiveIcon": {
-        "backgroundColor": "#EEF2F7",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#F9343E"
       },
       "package": "com.weblet.app",
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "category": [
+            "BROWSABLE",
+            "DEFAULT"
+          ],
+          "data": [
+            {
+              "scheme": "weblet",
+              "host": "browser"
+            },
+            {
+              "scheme": "weblet",
+              "pathPrefix": "/browser"
+            }
+          ]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
@@ -28,7 +47,20 @@
     },
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/app-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#F9343E",
+          "dark": {
+            "image": "./assets/app-icon.png",
+            "backgroundColor": "#F9343E"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

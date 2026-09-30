@@ -1,59 +1,117 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
+  ActivityIndicator,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { WebView, type WebViewNavigation } from 'react-native-webview';
+import { CreateLiteAppSheet } from '@/components/CreateLiteAppSheet';
 import { useApp } from '@/context/AppContext';
-import { getFaviconUrl } from '@/services/favicon';
+import { pinLiteAppToHome } from '@/services/homeShortcut';
 import {
   getDisplayNameFromUrl,
   isValidHttpUrl,
   normalizeUrl,
 } from '@/utils/url';
+import { showToast } from '@/utils/toast';
 import { radius, spacing, typography } from '@/theme';
 
+function firstParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? '';
+  return value ?? '';
+}
+
 export default function AddAppScreen() {
-  const { colors, addLiteApp, setPendingHomeShortcut } = useApp();
+  const params = useLocalSearchParams<{
+    url?: string | string[];
+    hideAdd?: string | string[];
+  }>();
+  const { colors, addLiteApp } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const [urlInput, setUrlInput] = useState('');
-  const [nameInput, setNameInput] = useState('');
+  const webRef = useRef<WebView>(null);
+  const inputRef = useRef<TextInput>(null);
+
+  const hideAdd = firstParam(params.hideAdd) === '1';
+  const initialUrl = useMemo(
+    () => normalizeUrl(firstParam(params.url)),
+    [params.url]
+  );
+
+  const [query, setQuery] = useState(initialUrl);
+  const [activeUrl, setActiveUrl] = useState<string | null>(
+    initialUrl && isValidHttpUrl(initialUrl) ? initialUrl : null
+  );
+  const [currentUrl, setCurrentUrl] = useState(
+    initialUrl && isValidHttpUrl(initialUrl) ? initialUrl : ''
+  );
+  const [pageTitle, setPageTitle] = useState(
+    initialUrl && isValidHttpUrl(initialUrl)
+      ? getDisplayNameFromUrl(initialUrl)
+      : ''
+  );
+  const [loading, setLoading] = useState(Boolean(activeUrl));
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const previewUrl = useMemo(() => {
-    const normalized = normalizeUrl(urlInput);
-    return isValidHttpUrl(normalized) ? normalized : '';
-  }, [urlInput]);
+  const browsing = Boolean(activeUrl);
+  const showAddButton = browsing && !hideAdd;
 
-  const previewName =
-    nameInput.trim() ||
-    (previewUrl ? getDisplayNameFromUrl(previewUrl) : 'New Lite App');
+  const goToQuery = useCallback((value: string) => {
+    const target = normalizeUrl(value);
+    if (!target || !isValidHttpUrl(target)) return;
+    setQuery(target);
+    setActiveUrl(target);
+    setCurrentUrl(target);
+    setPageTitle(getDisplayNameFromUrl(target));
+    setLoading(true);
+  }, []);
 
-  const onSave = async () => {
-    if (!previewUrl) {
-      Alert.alert('Invalid URL', 'Enter a valid website address.');
+  const onNavChange = useCallback((nav: WebViewNavigation) => {
+    setCurrentUrl(nav.url);
+    setQuery(nav.url);
+    if (nav.title) setPageTitle(nav.title);
+  }, []);
+
+  const onConfirmCreate = async (input: {
+    name: string;
+    url: string;
+    addToHomeScreen: boolean;
+  }) => {
+    const url = normalizeUrl(input.url);
+    if (!url || !isValidHttpUrl(url)) {
+      showToast('Enter a valid URL');
       return;
     }
 
     setSaving(true);
     try {
       const app = await addLiteApp({
-        name: nameInput.trim() || undefined,
-        url: previewUrl,
+        name: input.name,
+        url,
       });
-      if (app) {
-        setPendingHomeShortcut(app);
+      if (!app) {
+        showToast('Could not create Lite App');
+        return;
+      }
+
+      setSheetOpen(false);
+      showToast(`${app.name} added`);
+
+      if (input.addToHomeScreen) {
+        await pinLiteAppToHome(app);
+      }
+
+      if (router.canGoBack()) {
         router.back();
+      } else {
+        router.replace('/(tabs)');
       }
     } finally {
       setSaving(false);
@@ -61,116 +119,154 @@ export default function AddAppScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={[styles.screen, { backgroundColor: colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <View style={[styles.screen, { backgroundColor: colors.background }]}>
       <View
         style={[
           styles.header,
           {
-            paddingTop: Math.max(insets.top, spacing.md),
-            borderBottomColor: colors.border,
+            paddingTop: Math.max(insets.top, spacing.sm),
             backgroundColor: colors.surfaceSolid,
+            borderBottomColor: colors.border,
           },
         ]}
       >
-        <Pressable onPress={() => router.back()} hitSlop={10}>
-          <Ionicons name="close" size={24} color={colors.text} />
+        <Pressable
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
-          Add Lite App
-        </Text>
-        <View style={{ width: 24 }} />
-      </View>
 
-      <View style={styles.body}>
         <View
           style={[
-            styles.preview,
+            styles.searchBar,
             {
-              backgroundColor: colors.surfaceSolid,
+              backgroundColor: colors.backgroundSecondary,
               borderColor: colors.border,
             },
           ]}
         >
-          <View
-            style={[
-              styles.previewIcon,
-              { backgroundColor: colors.iconBg, borderColor: colors.border },
-            ]}
+          <Ionicons name="search" size={18} color={colors.textMuted} />
+          <TextInput
+            ref={inputRef}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search or type URL"
+            placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="go"
+            keyboardType="url"
+            autoFocus={!browsing}
+            onSubmitEditing={() => goToQuery(query)}
+            style={[styles.searchInput, { color: colors.text }]}
+          />
+          <Pressable
+            onPress={() => goToQuery(query)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Go"
           >
-            {previewUrl ? (
-              <Image
-                source={{ uri: getFaviconUrl(previewUrl) }}
-                style={styles.favicon}
-              />
-            ) : (
-              <Ionicons name="globe-outline" size={28} color={colors.textMuted} />
-            )}
-          </View>
-          <Text style={[styles.previewName, { color: colors.text }]}>
-            {previewName}
-          </Text>
-          <Text style={{ color: colors.textSecondary, ...typography.caption }}>
-            {previewUrl || 'Enter a URL to preview'}
-          </Text>
+            <Ionicons name="arrow-forward" size={18} color={colors.textMuted} />
+          </Pressable>
         </View>
 
-        <Text style={[styles.label, { color: colors.textSecondary }]}>URL</Text>
-        <TextInput
-          value={urlInput}
-          onChangeText={setUrlInput}
-          placeholder="https://example.com"
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="none"
-          autoCorrect={false}
-          keyboardType="url"
-          style={[
-            styles.input,
-            {
-              color: colors.text,
-              backgroundColor: colors.surfaceSolid,
-              borderColor: colors.border,
-            },
-          ]}
-        />
-
-        <Text style={[styles.label, { color: colors.textSecondary }]}>
-          Name (optional)
-        </Text>
-        <TextInput
-          value={nameInput}
-          onChangeText={setNameInput}
-          placeholder="App name"
-          placeholderTextColor={colors.textMuted}
-          style={[
-            styles.input,
-            {
-              color: colors.text,
-              backgroundColor: colors.surfaceSolid,
-              borderColor: colors.border,
-            },
-          ]}
-        />
-
-        <Pressable
-          onPress={onSave}
-          disabled={saving || !previewUrl}
-          style={({ pressed }) => [
-            styles.saveBtn,
-            {
-              backgroundColor: colors.primary,
-              opacity: saving || !previewUrl ? 0.5 : pressed ? 0.85 : 1,
-            },
-          ]}
-        >
-          <Text style={styles.saveLabel}>
-            {saving ? 'Saving…' : 'Add Lite App'}
-          </Text>
-        </Pressable>
+        {showAddButton ? (
+          <Pressable
+            onPress={() => setSheetOpen(true)}
+            style={({ pressed }) => [
+              styles.addBtn,
+              {
+                backgroundColor: colors.primarySoft,
+                opacity: pressed ? 0.85 : 1,
+              },
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Add Lite App"
+          >
+            <Ionicons
+              name="add-circle-outline"
+              size={18}
+              color={colors.primary}
+            />
+            <Text style={[styles.addLabel, { color: colors.primary }]}>
+              Lite App
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
-    </KeyboardAvoidingView>
+
+      {browsing && activeUrl ? (
+        <View style={styles.browser}>
+          {loading ? (
+            <View
+              style={[styles.loadingBar, { backgroundColor: colors.primary }]}
+            />
+          ) : null}
+          <WebView
+            ref={webRef}
+            source={{ uri: activeUrl }}
+            onNavigationStateChange={onNavChange}
+            onLoadStart={() => setLoading(true)}
+            onLoadEnd={() => setLoading(false)}
+            startInLoadingState
+            renderLoading={() => (
+              <View
+                style={[
+                  styles.loading,
+                  { backgroundColor: colors.background },
+                ]}
+              >
+                <ActivityIndicator size="large" color={colors.primary} />
+              </View>
+            )}
+            allowsBackForwardNavigationGestures
+            setSupportMultipleWindows={false}
+            style={styles.webview}
+          />
+        </View>
+      ) : (
+        <View style={styles.empty}>
+          <View
+            style={[
+              styles.emptyIcon,
+              { backgroundColor: colors.primarySoft },
+            ]}
+          >
+            <Ionicons name="globe-outline" size={36} color={colors.primary} />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>
+            {hideAdd
+              ? 'Search or type a URL'
+              : 'Search any site to add as a Lite App'}
+          </Text>
+          <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>
+            {hideAdd
+              ? 'Enter a website address or search term above to browse.'
+              : 'Type a website address or search term above, then tap Lite App when the page loads.'}
+          </Text>
+        </View>
+      )}
+
+      {!hideAdd ? (
+        <CreateLiteAppSheet
+          visible={sheetOpen}
+          initialName={
+            pageTitle && pageTitle !== currentUrl
+              ? pageTitle
+              : getDisplayNameFromUrl(currentUrl || activeUrl || '')
+          }
+          initialUrl={currentUrl || activeUrl || ''}
+          onCancel={() => {
+            if (!saving) setSheetOpen(false);
+          }}
+          onConfirm={onConfirmCreate}
+        />
+      ) : null}
+    </View>
   );
 }
 
@@ -181,66 +277,81 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.md,
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  headerTitle: {
-    ...typography.title,
-  },
-  body: {
-    padding: spacing.lg,
-  },
-  preview: {
+  backBtn: {
+    width: 36,
+    height: 36,
     alignItems: 'center',
-    paddingVertical: spacing.xxl,
-    borderRadius: radius.xl,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: spacing.xl,
+    justifyContent: 'center',
   },
-  previewIcon: {
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    height: 44,
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.md,
+  },
+  searchInput: {
+    flex: 1,
+    ...typography.body,
+    paddingVertical: 0,
+  },
+  addBtn: {
+    height: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.full,
+  },
+  addLabel: {
+    ...typography.caption,
+    fontWeight: '700',
+  },
+  empty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: spacing.xxxl,
+    gap: spacing.md,
+  },
+  emptyIcon: {
     width: 72,
     height: 72,
-    borderRadius: radius.lg,
+    borderRadius: radius.xl,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: spacing.md,
-  },
-  favicon: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-  },
-  previewName: {
-    ...typography.title,
-    marginBottom: 4,
-  },
-  label: {
-    ...typography.caption,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
     marginBottom: spacing.sm,
   },
-  input: {
-    ...typography.body,
-    height: 50,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.lg,
-    marginBottom: spacing.lg,
+  emptyTitle: {
+    ...typography.title,
+    textAlign: 'center',
   },
-  saveBtn: {
-    height: 52,
-    borderRadius: radius.lg,
+  emptyHint: {
+    ...typography.body,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  browser: {
+    flex: 1,
+  },
+  webview: {
+    flex: 1,
+  },
+  loading: {
+    ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: spacing.sm,
   },
-  saveLabel: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '700',
+  loadingBar: {
+    height: 2,
+    width: '100%',
   },
 });

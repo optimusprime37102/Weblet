@@ -7,16 +7,30 @@ import {
   Text,
   View,
 } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/context/AppContext';
 import type { ThemeMode } from '@/types';
 import { radius, spacing, typography } from '@/theme';
 
-const THEME_OPTIONS: Array<{ value: ThemeMode; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
+const THEME_OPTIONS: Array<{
+  value: ThemeMode;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}> = [
   { value: 'system', label: 'System', icon: 'phone-portrait-outline' },
   { value: 'light', label: 'Light', icon: 'sunny-outline' },
   { value: 'dark', label: 'Dark', icon: 'moon-outline' },
+];
+
+const QUICK_LINKS: Array<{
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  href: '/ready-made' | '/add-app';
+}> = [
+  { label: 'Ready-made Lite Apps', icon: 'grid-outline', href: '/ready-made' },
+  { label: 'Create Your Own', icon: 'add-circle-outline', href: '/add-app' },
 ];
 
 export default function SettingsScreen() {
@@ -29,6 +43,7 @@ export default function SettingsScreen() {
     clearAllData,
   } = useApp();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
 
   const confirmClear = () => {
     Alert.alert(
@@ -55,8 +70,40 @@ export default function SettingsScreen() {
     >
       <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
       <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-        Appearance, data, and about
+        Appearance, create apps, data, and about
       </Text>
+
+      <Text style={[styles.section, { color: colors.textSecondary }]}>
+        Create
+      </Text>
+      <View
+        style={[
+          styles.card,
+          { backgroundColor: colors.surfaceSolid, borderColor: colors.border },
+        ]}
+      >
+        {QUICK_LINKS.map((link, index) => (
+          <Pressable
+            key={link.href}
+            onPress={() => router.push(link.href)}
+            style={[
+              styles.row,
+              index < QUICK_LINKS.length - 1 && {
+                borderBottomWidth: StyleSheet.hairlineWidth,
+                borderBottomColor: colors.border,
+              },
+            ]}
+          >
+            <View style={styles.rowLeft}>
+              <Ionicons name={link.icon} size={20} color={colors.text} />
+              <Text style={[styles.rowLabel, { color: colors.text }]}>
+                {link.label}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+          </Pressable>
+        ))}
+      </View>
 
       <Text style={[styles.section, { color: colors.textSecondary }]}>
         Appearance

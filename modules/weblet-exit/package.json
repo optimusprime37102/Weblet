@@ -1,0 +1,13 @@
+{
+  "name": "weblet-exit",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "types": "index.ts",
+  "private": true,
+  "peerDependencies": {
+    "expo": "*",
+    "expo-modules-core": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

@@ -11,27 +11,30 @@ import { Header } from '@/components/Header';
 import { SearchBar } from '@/components/SearchBar';
 import { LiteAppGrid } from '@/components/LiteAppGrid';
 import { CreateFab } from '@/components/CreateFab';
-import { HomeScreenDialog } from '@/components/HomeScreenDialog';
-import { ManageLiteAppDialog } from '@/components/ManageLiteAppDialog';
+import {
+  ManageLiteAppDialog,
+  type MenuAnchor,
+} from '@/components/ManageLiteAppDialog';
 import { useApp } from '@/context/AppContext';
 import { pinLiteAppToHome } from '@/services/homeShortcut';
+import { showToast } from '@/utils/toast';
 import { spacing, typography } from '@/theme';
 import { normalizeUrl } from '@/utils/url';
 import type { LiteApp } from '@/types';
 
 export default function LiteAppsScreen() {
-  const {
-    colors,
-    liteApps,
-    removeLiteApp,
-    pendingHomeShortcut,
-    setPendingHomeShortcut,
-  } = useApp();
+  const { colors, liteApps, removeLiteApp, addBookmark } = useApp();
   const router = useRouter();
   const searchRef = useRef<TextInput>(null);
   const [query, setQuery] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [manageApp, setManageApp] = useState<LiteApp | null>(null);
+  const [menuAnchor, setMenuAnchor] = useState<MenuAnchor | null>(null);
+
+  const closeManageMenu = () => {
+    setManageApp(null);
+    setMenuAnchor(null);
+  };
 
   const openBrowser = (url: string, title?: string) => {
     const target = normalizeUrl(url);
@@ -42,17 +45,26 @@ export default function LiteAppsScreen() {
     });
   };
 
+  const openHomeSearch = (value: string) => {
+    const target = normalizeUrl(value);
+    if (!target) return;
+    router.push({
+      pathname: '/add-app',
+      params: { url: target, hideAdd: '1' },
+    });
+  };
+
   const isEmpty = liteApps.length === 0;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <Header onSearchPress={() => searchRef.current?.focus()} />
+      <Header />
       <SearchBar
         ref={searchRef}
         value={query}
         onChangeText={setQuery}
         onSubmitQuery={(value) => {
-          openBrowser(value);
+          openHomeSearch(value);
           setQuery('');
         }}
       />
@@ -76,7 +88,10 @@ export default function LiteAppsScreen() {
           <LiteAppGrid
             apps={liteApps}
             onOpenApp={(app) => openBrowser(app.url, app.name)}
-            onLongPressApp={setManageApp}
+            onLongPressApp={(app, anchor) => {
+              setManageApp(app);
+              setMenuAnchor(anchor);
+            }}
           />
         )}
       </ScrollView>
@@ -91,34 +106,31 @@ export default function LiteAppsScreen() {
       <ManageLiteAppDialog
         app={manageApp}
         visible={!!manageApp}
-        onCancel={() => setManageApp(null)}
+        anchor={menuAnchor}
+        onCancel={closeManageMenu}
         onOpen={() => {
           if (!manageApp) return;
           const app = manageApp;
-          setManageApp(null);
+          closeManageMenu();
           openBrowser(app.url, app.name);
         }}
-        onAddToHomeScreen={() => {
+        onBookmark={async () => {
           if (!manageApp) return;
-          setPendingHomeShortcut(manageApp);
-          setManageApp(null);
+          const app = manageApp;
+          closeManageMenu();
+          await addBookmark({ title: app.name, url: app.url });
+          showToast(`${app.name} bookmarked`);
+        }}
+        onAddToHomeScreen={async () => {
+          if (!manageApp) return;
+          const app = manageApp;
+          closeManageMenu();
+          await pinLiteAppToHome(app);
         }}
         onRemove={() => {
           if (!manageApp) return;
           removeLiteApp(manageApp.id);
-          setManageApp(null);
-        }}
-      />
-
-      <HomeScreenDialog
-        app={pendingHomeShortcut}
-        visible={!!pendingHomeShortcut}
-        onCancel={() => setPendingHomeShortcut(null)}
-        onAddAutomatically={async () => {
-          if (pendingHomeShortcut) {
-            await pinLiteAppToHome(pendingHomeShortcut);
-          }
-          setPendingHomeShortcut(null);
+          closeManageMenu();
         }}
       />
     </View>

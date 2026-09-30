@@ -11,12 +11,13 @@ type Props = {
   canGoForward: boolean;
   loading: boolean;
   isBookmarked: boolean;
+  showAddLiteApp?: boolean;
   onClose: () => void;
   onBack: () => void;
   onForward: () => void;
   onReload: () => void;
   onToggleBookmark: () => void;
-  onAddLiteApp: () => void;
+  onAddLiteApp?: () => void;
 };
 
 export function BrowserChrome({
@@ -25,6 +26,7 @@ export function BrowserChrome({
   canGoForward,
   loading,
   isBookmarked,
+  showAddLiteApp = true,
   onClose,
   onBack,
   onForward,
@@ -88,15 +90,21 @@ export function BrowserChrome({
             color={isBookmarked ? colors.primary : colors.text}
           />
         </Pressable>
-        <Pressable
-          onPress={onAddLiteApp}
-          style={[styles.addBtn, { backgroundColor: colors.primarySoft }]}
-        >
-          <Ionicons name="add-circle-outline" size={18} color={colors.primary} />
-          <Text style={[styles.addLabel, { color: colors.primary }]}>
-            Lite App
-          </Text>
-        </Pressable>
+        {showAddLiteApp && onAddLiteApp ? (
+          <Pressable
+            onPress={onAddLiteApp}
+            style={[styles.addBtn, { backgroundColor: colors.primarySoft }]}
+          >
+            <Ionicons
+              name="add-circle-outline"
+              size={18}
+              color={colors.primary}
+            />
+            <Text style={[styles.addLabel, { color: colors.primary }]}>
+              Lite App
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
     </View>
   );

@@ -1,7 +1,7 @@
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
+  BackHandler,
   StyleSheet,
   Text,
   View,
@@ -9,34 +9,85 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { WebView, type WebViewNavigation } from 'react-native-webview';
 import { BrowserChrome } from '@/components/BrowserChrome';
+import { CreateLiteAppSheet } from '@/components/CreateLiteAppSheet';
 import { useApp } from '@/context/AppContext';
+import { exitAppCompletely } from '@/services/exitApp';
+import { pinLiteAppToHome } from '@/services/homeShortcut';
 import { getDisplayNameFromUrl, getHostname, normalizeUrl } from '@/utils/url';
+import { showToast } from '@/utils/toast';
 import { spacing, typography } from '@/theme';
 
+function firstParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? '';
+  return value ?? '';
+}
+
 export default function BrowserScreen() {
-  const params = useLocalSearchParams<{ url?: string; title?: string }>();
+  const params = useLocalSearchParams<{
+    url?: string | string[];
+    title?: string | string[];
+    fromHome?: string | string[];
+    cold?: string | string[];
+    fromSearch?: string | string[];
+  }>();
   const router = useRouter();
   const { colors, bookmarks, addBookmark, removeBookmark, addLiteApp } =
     useApp();
   const webRef = useRef<WebView>(null);
 
+  const fromHome = firstParam(params.fromHome) === '1';
+  const fromSearch = firstParam(params.fromSearch) === '1';
+  // Cold = launched from shortcut while app was not already running → exit on X.
+  // Warm (cold=0) = app was already open → X returns to Lite Apps home.
+  const coldStart = firstParam(params.cold) === '1';
+  const showAddLiteApp = !fromSearch && !fromHome;
   const initialUrl = useMemo(
-    () => normalizeUrl(params.url ?? 'https://www.google.com'),
+    () => normalizeUrl(firstParam(params.url) || 'https://www.google.com'),
     [params.url]
   );
 
   const [currentUrl, setCurrentUrl] = useState(initialUrl);
   const [pageTitle, setPageTitle] = useState(
-    params.title || getDisplayNameFromUrl(initialUrl)
+    firstParam(params.title) || getDisplayNameFromUrl(initialUrl)
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const matchedBookmark = bookmarks.find(
     (b) => b.url.replace(/\/$/, '') === currentUrl.replace(/\/$/, '')
   );
+
+  const closeBrowser = useCallback(() => {
+    if (fromHome) {
+      if (coldStart) {
+        exitAppCompletely();
+        return;
+      }
+      router.replace('/(tabs)');
+      return;
+    }
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    exitAppCompletely();
+  }, [fromHome, coldStart, router]);
+
+  useEffect(() => {
+    if (!fromHome) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (canGoBack) {
+        webRef.current?.goBack();
+        return true;
+      }
+      closeBrowser();
+      return true;
+    });
+    return () => sub.remove();
+  }, [fromHome, canGoBack, closeBrowser]);
 
   const onNavChange = useCallback((nav: WebViewNavigation) => {
     setCurrentUrl(nav.url);
@@ -53,13 +104,21 @@ export default function BrowserScreen() {
     await addBookmark({ title: pageTitle, url: currentUrl });
   };
 
-  const saveLiteApp = async () => {
+  const saveLiteApp = async (input: {
+    name: string;
+    url: string;
+    addToHomeScreen: boolean;
+  }) => {
     const app = await addLiteApp({
-      name: pageTitle || getDisplayNameFromUrl(currentUrl),
-      url: currentUrl,
+      name: input.name || pageTitle || getDisplayNameFromUrl(input.url),
+      url: input.url || currentUrl,
     });
-    if (app) {
-      Alert.alert('Saved', `${app.name} was added to your Lite Apps.`);
+    if (!app) return;
+
+    setSheetOpen(false);
+    showToast(`${app.name} added`);
+    if (input.addToHomeScreen) {
+      await pinLiteAppToHome(app);
     }
   };
 
@@ -71,7 +130,8 @@ export default function BrowserScreen() {
         canGoForward={canGoForward}
         loading={loading}
         isBookmarked={Boolean(matchedBookmark)}
-        onClose={() => router.back()}
+        showAddLiteApp={showAddLiteApp}
+        onClose={closeBrowser}
         onBack={() => webRef.current?.goBack()}
         onForward={() => webRef.current?.goForward()}
         onReload={() => {
@@ -79,7 +139,9 @@ export default function BrowserScreen() {
           webRef.current?.reload();
         }}
         onToggleBookmark={toggleBookmark}
-        onAddLiteApp={saveLiteApp}
+        onAddLiteApp={
+          showAddLiteApp ? () => setSheetOpen(true) : undefined
+        }
       />
 
       {error ? (
@@ -132,6 +194,16 @@ export default function BrowserScreen() {
           style={styles.webview}
         />
       )}
+
+      <CreateLiteAppSheet
+        visible={showAddLiteApp && sheetOpen}
+        initialName={
+          pageTitle || getDisplayNameFromUrl(currentUrl)
+        }
+        initialUrl={currentUrl}
+        onCancel={() => setSheetOpen(false)}
+        onConfirm={saveLiteApp}
+      />
     </View>
   );
 }

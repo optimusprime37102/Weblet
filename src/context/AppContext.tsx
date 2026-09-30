@@ -28,10 +28,6 @@ type AppContextValue = {
   addBookmark: (input: { title?: string; url: string }) => Promise<Bookmark | null>;
   removeBookmark: (id: string) => Promise<void>;
   clearAllData: () => Promise<void>;
-  drawerOpen: boolean;
-  setDrawerOpen: (open: boolean) => void;
-  pendingHomeShortcut: LiteApp | null;
-  setPendingHomeShortcut: (app: LiteApp | null) => void;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -42,10 +38,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [liteApps, setLiteApps] = useState<LiteApp[]>([]);
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ themeMode: 'system' });
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [pendingHomeShortcut, setPendingHomeShortcut] = useState<LiteApp | null>(
-    null
-  );
 
   useEffect(() => {
     let mounted = true;
@@ -183,7 +175,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLiteApps([]);
     setBookmarks([]);
     setSettings({ themeMode: 'system' });
-    setPendingHomeShortcut(null);
   }, []);
 
   const value = useMemo<AppContextValue>(
@@ -201,10 +192,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addBookmark,
       removeBookmark,
       clearAllData,
-      drawerOpen,
-      setDrawerOpen,
-      pendingHomeShortcut,
-      setPendingHomeShortcut,
     }),
     [
       ready,
@@ -220,8 +207,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addBookmark,
       removeBookmark,
       clearAllData,
-      drawerOpen,
-      pendingHomeShortcut,
     ]
   );
 

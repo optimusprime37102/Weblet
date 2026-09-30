@@ -1,13 +1,14 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { LiteApp } from '@/types';
+import type { MenuAnchor } from '@/components/ManageLiteAppDialog';
 import { AddAppTile, LiteAppIcon } from '@/components/LiteAppIcon';
 import { spacing } from '@/theme';
 
 type Props = {
   apps: LiteApp[];
   onOpenApp: (app: LiteApp) => void;
-  onLongPressApp?: (app: LiteApp) => void;
+  onLongPressApp?: (app: LiteApp, anchor: MenuAnchor) => void;
   onAddApp?: () => void;
 };
 
@@ -24,7 +25,7 @@ export function LiteAppGrid({
           key={app.id}
           app={app}
           onPress={() => onOpenApp(app)}
-          onLongPress={() => onLongPressApp?.(app)}
+          onLongPress={(anchor) => onLongPressApp?.(app, anchor)}
         />
       ))}
       {onAddApp ? <AddAppTile onPress={onAddApp} /> : null}

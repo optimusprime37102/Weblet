@@ -1,5 +1,4 @@
 import { Alert, Platform } from 'react-native';
-import * as Linking from 'expo-linking';
 import { appShortcut } from '@aun-abbas/expo-pin-shortcut';
 import type { LiteApp } from '@/types';
 
@@ -10,6 +9,19 @@ export function canPinHomeShortcut(): boolean {
   } catch {
     return false;
   }
+}
+
+/**
+ * Path-style deep link so Expo Router opens /browser as the initial route.
+ * (Host-style weblet://browser?... is treated as hostname, not a route.)
+ */
+export function buildHomeShortcutUri(app: LiteApp): string {
+  const params = new URLSearchParams({
+    url: app.url,
+    title: app.name,
+    fromHome: '1',
+  });
+  return `weblet:///browser?${params.toString()}`;
 }
 
 export async function pinLiteAppToHome(app: LiteApp): Promise<boolean> {
@@ -29,18 +41,11 @@ export async function pinLiteAppToHome(app: LiteApp): Promise<boolean> {
     return false;
   }
 
-  const uri = Linking.createURL('/browser', {
-    queryParams: {
-      url: app.url,
-      title: app.name,
-    },
-  });
-
   try {
     return await appShortcut.pin({
       id: app.id,
       label: app.name,
-      uri,
+      uri: buildHomeShortcutUri(app),
       iconUrl: app.favicon ?? null,
     });
   } catch (error) {

@@ -6,11 +6,17 @@
     "start": "expo start",
     "android": "expo run:android",
     "android:device": "expo run:android --device",
+    "android:prebuild": "expo prebuild --platform android --clean",
+    "android:uninstall": "adb uninstall com.weblet.app || exit 0",
+    "android:rebuild": "npm run android:prebuild && npm run android:uninstall && expo run:android --device",
+    "android:rebuild:emu": "npm run android:prebuild && npm run android:uninstall && expo run:android",
     "ios": "expo run:ios",
+    "ios:prebuild": "expo prebuild --platform ios --clean",
+    "ios:rebuild": "npm run ios:prebuild && expo run:ios",
     "web": "expo start --web",
     "apk:debug": "npx eas-cli@latest build -p android --profile apk-debug --local",
     "apk:release": "npx eas-cli@latest build -p android --profile apk-release --local",
-    "aab": "npx eas-cli@latest build -p android --profile production --local",
+    "aab": "npx eas-cli@latest build -p android --profile production --local"
   },
   "dependencies": {
     "@aun-abbas/expo-pin-shortcut": "^0.2.0",
@@ -20,8 +26,10 @@
     "expo": "~57.0.25",
     "expo-constants": "~57.0.19",
     "expo-font": "~57.0.4",
+    "expo-linear-gradient": "~57.0.2",
     "expo-linking": "~57.0.11",
     "expo-router": "~57.0.23",
+    "expo-splash-screen": "~57.0.9",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
     "react": "19.2.3",
@@ -31,7 +39,8 @@
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.2",
     "react-native-webview": "13.16.1",
-    "react-native-worklets": "0.10.4"
+    "react-native-worklets": "0.10.4",
+    "weblet-exit": "file:./modules/weblet-exit"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
