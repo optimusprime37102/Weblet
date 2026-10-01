@@ -124,7 +124,7 @@ export default function AddAppScreen() {
         style={[
           styles.header,
           {
-            paddingTop: Math.max(insets.top, spacing.sm),
+            paddingTop: insets.top + spacing.lg,
             backgroundColor: colors.surfaceSolid,
             borderBottomColor: colors.border,
           },

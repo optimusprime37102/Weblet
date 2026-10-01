@@ -18,7 +18,7 @@ import {
 import { useApp } from '@/context/AppContext';
 import { pinLiteAppToHome } from '@/services/homeShortcut';
 import { showToast } from '@/utils/toast';
-import { spacing, typography } from '@/theme';
+import { radius, spacing, typography } from '@/theme';
 import { normalizeUrl } from '@/utils/url';
 import type { LiteApp } from '@/types';
 
@@ -36,12 +36,14 @@ export default function LiteAppsScreen() {
     setMenuAnchor(null);
   };
 
-  const openBrowser = (url: string, title?: string) => {
-    const target = normalizeUrl(url);
-    if (!target) return;
+  const openBrowser = (app: LiteApp) => {
     router.push({
       pathname: '/browser',
-      params: { url: target, title: title ?? '' },
+      params: {
+        url: app.url,
+        title: app.name,
+        appId: app.id,
+      },
     });
   };
 
@@ -51,6 +53,13 @@ export default function LiteAppsScreen() {
     router.push({
       pathname: '/add-app',
       params: { url: target, hideAdd: '1' },
+    });
+  };
+
+  const openSettings = (app: LiteApp) => {
+    router.push({
+      pathname: '/lite-app-settings',
+      params: { appId: app.id },
     });
   };
 
@@ -77,6 +86,7 @@ export default function LiteAppsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.title, { color: colors.text }]}>Lite Apps</Text>
+        <View style={[styles.titleAccent, { backgroundColor: colors.primary }]} />
 
         {isEmpty ? (
           <View style={styles.emptyBody}>
@@ -87,7 +97,7 @@ export default function LiteAppsScreen() {
         ) : (
           <LiteAppGrid
             apps={liteApps}
-            onOpenApp={(app) => openBrowser(app.url, app.name)}
+            onOpenApp={(app) => openBrowser(app)}
             onLongPressApp={(app, anchor) => {
               setManageApp(app);
               setMenuAnchor(anchor);
@@ -112,7 +122,13 @@ export default function LiteAppsScreen() {
           if (!manageApp) return;
           const app = manageApp;
           closeManageMenu();
-          openBrowser(app.url, app.name);
+          openBrowser(app);
+        }}
+        onSettings={() => {
+          if (!manageApp) return;
+          const app = manageApp;
+          closeManageMenu();
+          openSettings(app);
         }}
         onBookmark={async () => {
           if (!manageApp) return;
@@ -152,6 +168,13 @@ const styles = StyleSheet.create({
     ...typography.brand,
     fontSize: 28,
     paddingHorizontal: spacing.lg,
+    marginBottom: spacing.sm,
+  },
+  titleAccent: {
+    width: 36,
+    height: 3,
+    borderRadius: radius.full,
+    marginLeft: spacing.lg,
     marginBottom: spacing.lg,
   },
   emptyBody: {

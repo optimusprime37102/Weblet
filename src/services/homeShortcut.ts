@@ -19,6 +19,7 @@ export function buildHomeShortcutUri(app: LiteApp): string {
   const params = new URLSearchParams({
     url: app.url,
     title: app.name,
+    appId: app.id,
     fromHome: '1',
   });
   return `weblet:///browser?${params.toString()}`;

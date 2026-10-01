@@ -63,9 +63,9 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   tabShadow: {
-    shadowColor: '#0F172A',
-    shadowOpacity: 0.06,
-    shadowRadius: 10,
+    shadowColor: '#2A1216',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     shadowOffset: { width: 0, height: -2 },
     elevation: 8,
   },

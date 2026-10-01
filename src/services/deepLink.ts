@@ -33,6 +33,7 @@ export function openBrowserFromDeepLink(url: string): boolean {
     params: {
       url: targetUrl,
       title: paramValue(query.title as string | string[] | undefined),
+      appId: paramValue(query.appId as string | string[] | undefined),
       fromHome: '1',
       cold: '0',
     },

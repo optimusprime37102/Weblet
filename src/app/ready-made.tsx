@@ -50,7 +50,7 @@ export default function ReadyMadeScreen() {
         style={[
           styles.header,
           {
-            paddingTop: Math.max(insets.top, spacing.md),
+            paddingTop: insets.top + spacing.lg,
             backgroundColor: colors.background,
             borderBottomColor: colors.border,
           },

@@ -96,14 +96,14 @@ export function AddAppTile({
           styles.iconWrap,
           styles.addWrap,
           {
-            borderColor: colors.dashed,
-            backgroundColor: colors.surfaceMuted,
+            borderColor: colors.primary,
+            backgroundColor: colors.primarySoft,
           },
         ]}
       >
-        <Ionicons name="add" size={28} color={colors.textMuted} />
+        <Ionicons name="add" size={28} color={colors.primary} />
       </View>
-      <Text style={[styles.label, { color: colors.textMuted }]}>Add App</Text>
+      <Text style={[styles.label, { color: colors.primary }]}>Add App</Text>
     </Pressable>
   );
 }

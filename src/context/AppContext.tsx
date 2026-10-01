@@ -11,6 +11,10 @@ import type { AppSettings, Bookmark, LiteApp, ThemeMode } from '@/types';
 import { lightColors, darkColors, type AppColors } from '@/theme';
 import { storage } from '@/services/storage';
 import { getFaviconUrl } from '@/services/favicon';
+import {
+  DEFAULT_LITE_APP_SETTINGS,
+  withDefaultSettings,
+} from '@/services/liteAppSettings';
 import { createId } from '@/utils/id';
 import { getDisplayNameFromUrl, normalizeUrl } from '@/utils/url';
 
@@ -59,7 +63,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (!mounted) return;
-      setLiteApps(nextApps);
+      const normalizedApps = nextApps.map(withDefaultSettings);
+      const needsPersist = normalizedApps.some(
+        (app, i) => !nextApps[i]?.settings
+      );
+      if (needsPersist) {
+        await storage.setLiteApps(normalizedApps);
+      }
+      setLiteApps(normalizedApps);
       setBookmarks(marks);
       setSettings(savedSettings);
       setReady(true);
@@ -105,6 +116,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         url,
         favicon: getFaviconUrl(url),
         createdAt: Date.now(),
+        settings: { ...DEFAULT_LITE_APP_SETTINGS },
       };
 
       await persistApps([app, ...liteApps]);
@@ -123,7 +135,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const updateLiteApp = useCallback(
     async (id: string, patch: Partial<LiteApp>) => {
       await persistApps(
-        liteApps.map((app) => (app.id === id ? { ...app, ...patch } : app))
+        liteApps.map((app) => {
+          if (app.id !== id) return app;
+          const next = { ...app, ...patch };
+          if (patch.settings) {
+            next.settings = {
+              ...DEFAULT_LITE_APP_SETTINGS,
+              ...app.settings,
+              ...patch.settings,
+            };
+          }
+          return withDefaultSettings(next);
+        })
       );
     },
     [liteApps, persistApps]

@@ -34,7 +34,7 @@ export const SearchBar = forwardRef<TextInput, SearchBarProps>(
           },
         ]}
       >
-        <Ionicons name="globe-outline" size={18} color={colors.textMuted} />
+        <Ionicons name="globe-outline" size={18} color={colors.primary} />
         <TextInput
           ref={ref}
           value={value}

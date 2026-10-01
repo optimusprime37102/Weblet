@@ -29,7 +29,7 @@ export function CreateFab({
     <View pointerEvents="box-none" style={styles.root}>
       {open ? (
         <Pressable
-          style={[styles.backdrop, { backgroundColor: colors.overlay }]}
+          style={[styles.backdrop, { backgroundColor: 'rgba(12, 8, 10, 0.72)' }]}
           onPress={() => onOpenChange(false)}
         />
       ) : null}
@@ -71,7 +71,7 @@ export function CreateFab({
             {
               backgroundColor: colors.primary,
               opacity: pressed ? 0.88 : 1,
-              shadowColor: colors.shadow,
+              shadowColor: colors.primary,
             },
           ]}
           accessibilityRole="button"
@@ -101,14 +101,20 @@ function MenuItem({
       onPress={onPress}
       style={({ pressed }) => [
         styles.menuRow,
-        { opacity: pressed ? 0.75 : 1 },
+        { opacity: pressed ? 0.82 : 1 },
       ]}
       accessibilityRole="button"
       accessibilityLabel={label}
     >
-      <Text style={[styles.menuLabel, { color: colors.text }]}>{label}</Text>
+      <Text style={styles.menuLabel}>{label}</Text>
       <View
-        style={[styles.menuIcon, { backgroundColor: colors.primarySoft }]}
+        style={[
+          styles.menuIcon,
+          {
+            backgroundColor: '#FFFFFF',
+            shadowColor: colors.shadow,
+          },
+        ]}
       >
         <Ionicons name={icon} size={20} color={colors.primary} />
       </View>
@@ -132,10 +138,10 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 20,
     borderRadius: radius.full,
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
+    shadowOpacity: 0.35,
+    shadowRadius: 14,
     shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
+    elevation: 8,
   },
   fabLabel: {
     color: '#FFFFFF',
@@ -161,7 +167,11 @@ const styles = StyleSheet.create({
   },
   menuLabel: {
     ...typography.body,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0, 0, 0, 0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   menuIcon: {
     width: 44,
@@ -169,5 +179,9 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 4,
   },
 });

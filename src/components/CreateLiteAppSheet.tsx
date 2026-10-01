@@ -38,7 +38,7 @@ export function CreateLiteAppSheet({
   onCancel,
   onConfirm,
 }: Props) {
-  const { colors, isDark } = useApp();
+  const { colors } = useApp();
   const insets = useSafeAreaInsets();
   const [name, setName] = useState(initialName);
   const [url, setUrl] = useState(initialUrl);
@@ -52,8 +52,8 @@ export function CreateLiteAppSheet({
   }, [visible, initialName, initialUrl]);
 
   const favicon = url ? getFaviconUrl(url) : null;
-  const sheetBg = isDark ? '#1A2332' : colors.surfaceSolid;
-  const fieldBg = isDark ? '#121A27' : colors.backgroundSecondary;
+  const sheetBg = colors.surfaceSolid;
+  const fieldBg = colors.backgroundSecondary;
 
   return (
     <Modal
@@ -181,7 +181,7 @@ export function CreateLiteAppSheet({
                 style={({ pressed }) => [
                   styles.okBtn,
                   {
-                    backgroundColor: isDark ? '#2A3548' : colors.surfaceMuted,
+                    backgroundColor: colors.surfaceMuted,
                     opacity: pressed ? 0.85 : 1,
                   },
                 ]}

@@ -1,18 +1,34 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  AppState,
   BackHandler,
+  Linking,
+  Platform,
   StyleSheet,
   Text,
   View,
+  type AppStateStatus,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { WebView, type WebViewNavigation } from 'react-native-webview';
+import {
+  WebView,
+  type WebViewNavigation,
+} from 'react-native-webview';
 import { BrowserChrome } from '@/components/BrowserChrome';
 import { CreateLiteAppSheet } from '@/components/CreateLiteAppSheet';
+import { LiteAppSettingsDrawer } from '@/components/lite-app-settings';
 import { useApp } from '@/context/AppContext';
 import { exitAppCompletely } from '@/services/exitApp';
 import { pinLiteAppToHome } from '@/services/homeShortcut';
+import {
+  buildClearSiteDataScript,
+  buildWebViewInjection,
+  getDataSaverFlags,
+  getLiteAppSettings,
+  getUserAgent,
+  isSameSiteUrl,
+} from '@/services/liteAppSettings';
 import { getDisplayNameFromUrl, getHostname, normalizeUrl } from '@/utils/url';
 import { showToast } from '@/utils/toast';
 import { spacing, typography } from '@/theme';
@@ -29,22 +45,47 @@ export default function BrowserScreen() {
     fromHome?: string | string[];
     cold?: string | string[];
     fromSearch?: string | string[];
+    appId?: string | string[];
+    clearData?: string | string[];
   }>();
   const router = useRouter();
-  const { colors, bookmarks, addBookmark, removeBookmark, addLiteApp } =
-    useApp();
+  const {
+    colors,
+    bookmarks,
+    liteApps,
+    addBookmark,
+    removeBookmark,
+    addLiteApp,
+  } = useApp();
   const webRef = useRef<WebView>(null);
 
   const fromHome = firstParam(params.fromHome) === '1';
   const fromSearch = firstParam(params.fromSearch) === '1';
-  // Cold = launched from shortcut while app was not already running → exit on X.
-  // Warm (cold=0) = app was already open → X returns to Lite Apps home.
   const coldStart = firstParam(params.cold) === '1';
-  const showAddLiteApp = !fromSearch && !fromHome;
+  const clearDataRequested = firstParam(params.clearData) === '1';
+  const paramAppId = firstParam(params.appId);
+  const showAddLiteApp = !fromSearch && !fromHome && !paramAppId;
   const initialUrl = useMemo(
     () => normalizeUrl(firstParam(params.url) || 'https://www.google.com'),
     [params.url]
   );
+
+  const liteApp = useMemo(() => {
+    if (paramAppId) {
+      return liteApps.find((app) => app.id === paramAppId) ?? null;
+    }
+    const normalized = initialUrl.replace(/\/$/, '');
+    return (
+      liteApps.find(
+        (app) => app.url.replace(/\/$/, '') === normalized
+      ) ?? null
+    );
+  }, [liteApps, paramAppId, initialUrl]);
+
+  const settings = getLiteAppSettings(liteApp);
+  const userAgent = getUserAgent(settings.websiteMode);
+  const dataSaver = getDataSaverFlags(settings);
+  const webViewInjection = buildWebViewInjection(settings);
 
   const [currentUrl, setCurrentUrl] = useState(initialUrl);
   const [pageTitle, setPageTitle] = useState(
@@ -55,30 +96,73 @@ export default function BrowserScreen() {
   const [canGoBack, setCanGoBack] = useState(false);
   const [canGoForward, setCanGoForward] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [webviewEpoch, setWebviewEpoch] = useState(0);
+  const [appActive, setAppActive] = useState(
+    AppState.currentState === 'active'
+  );
+  const clearHandledRef = useRef(false);
 
   const matchedBookmark = bookmarks.find(
     (b) => b.url.replace(/\/$/, '') === currentUrl.replace(/\/$/, '')
   );
 
+  const siteOrigin = liteApp?.url ?? initialUrl;
+
+  const clearWebsiteData = useCallback(async (opts?: { silent?: boolean }) => {
+    try {
+      webRef.current?.clearCache?.(true);
+      webRef.current?.injectJavaScript(buildClearSiteDataScript());
+      if (!opts?.silent) {
+        showToast('Website data cleared');
+        setTimeout(() => {
+          setError(null);
+          webRef.current?.reload();
+        }, 120);
+      }
+    } catch {
+      if (!opts?.silent) showToast('Could not clear website data');
+    }
+  }, []);
+
   const closeBrowser = useCallback(() => {
-    if (fromHome) {
-      if (coldStart) {
-        exitAppCompletely();
+    const finishClose = () => {
+      if (fromHome) {
+        if (coldStart) {
+          exitAppCompletely();
+          return;
+        }
+        router.replace('/(tabs)');
         return;
       }
-      router.replace('/(tabs)');
+      if (router.canGoBack()) {
+        router.back();
+        return;
+      }
+      exitAppCompletely();
+    };
+
+    if (liteApp && settings.clearDataOnClose) {
+      clearWebsiteData({ silent: true }).finally(finishClose);
       return;
     }
-    if (router.canGoBack()) {
-      router.back();
-      return;
-    }
-    exitAppCompletely();
-  }, [fromHome, coldStart, router]);
+    finishClose();
+  }, [
+    fromHome,
+    coldStart,
+    router,
+    liteApp,
+    settings.clearDataOnClose,
+    clearWebsiteData,
+  ]);
 
   useEffect(() => {
     if (!fromHome) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (settingsOpen) {
+        setSettingsOpen(false);
+        return true;
+      }
       if (canGoBack) {
         webRef.current?.goBack();
         return true;
@@ -87,7 +171,65 @@ export default function BrowserScreen() {
       return true;
     });
     return () => sub.remove();
-  }, [fromHome, canGoBack, closeBrowser]);
+  }, [fromHome, canGoBack, closeBrowser, settingsOpen]);
+
+  useEffect(() => {
+    const onChange = (next: AppStateStatus) => {
+      setAppActive(next === 'active');
+    };
+    const sub = AppState.addEventListener('change', onChange);
+    return () => sub.remove();
+  }, []);
+
+  const settingsKey = [
+    settings.websiteMode,
+    settings.cookiesEnabled,
+    settings.blockThirdPartyCookies,
+    settings.theme,
+    settings.dataSaverEnabled,
+    settings.blockImages,
+    settings.disableVideoAutoplay,
+    settings.reduceHeavyContent,
+  ].join('|');
+  const settingsKeyRef = useRef(settingsKey);
+
+  // Remount WebView when mode/privacy/data-saver settings change.
+  useEffect(() => {
+    if (settingsKeyRef.current === settingsKey) return;
+    settingsKeyRef.current = settingsKey;
+    setWebviewEpoch((value) => value + 1);
+    setError(null);
+  }, [settingsKey]);
+
+  // Auto refresh only while this Lite App is active in foreground.
+  useEffect(() => {
+    if (!liteApp || !settings.autoRefreshEnabled || !appActive) return;
+
+    const timer = setInterval(() => {
+      webRef.current?.reload();
+    }, settings.autoRefreshInterval * 1000);
+
+    return () => clearInterval(timer);
+  }, [
+    liteApp,
+    settings.autoRefreshEnabled,
+    settings.autoRefreshInterval,
+    appActive,
+    webviewEpoch,
+  ]);
+
+  useEffect(() => {
+    if (!clearDataRequested) {
+      clearHandledRef.current = false;
+      return;
+    }
+    if (clearHandledRef.current) return;
+    clearHandledRef.current = true;
+    const timer = setTimeout(() => {
+      clearWebsiteData();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [clearDataRequested, clearWebsiteData, webviewEpoch]);
 
   const onNavChange = useCallback((nav: WebViewNavigation) => {
     setCurrentUrl(nav.url);
@@ -96,12 +238,46 @@ export default function BrowserScreen() {
     if (nav.title) setPageTitle(nav.title);
   }, []);
 
+  const onShouldStartLoadWithRequest = useCallback(
+    (request: { url: string }) => {
+      const target = request.url;
+      if (
+        !target ||
+        target.startsWith('about:') ||
+        target.startsWith('data:') ||
+        target.startsWith('blob:')
+      ) {
+        return true;
+      }
+
+      if (settings.externalLinks !== 'browser' || !liteApp) {
+        return true;
+      }
+
+      if (isSameSiteUrl(siteOrigin, target)) {
+        return true;
+      }
+
+      // External domain → system browser (Android ACTION_VIEW via Linking)
+      Linking.openURL(target).catch(() => {
+        showToast('Could not open link');
+      });
+      return false;
+    },
+    [settings.externalLinks, liteApp, siteOrigin]
+  );
+
   const toggleBookmark = async () => {
     if (matchedBookmark) {
       await removeBookmark(matchedBookmark.id);
       return;
     }
     await addBookmark({ title: pageTitle, url: currentUrl });
+  };
+
+  const openLiteAppSettings = () => {
+    if (!liteApp) return;
+    setSettingsOpen(true);
   };
 
   const saveLiteApp = async (input: {
@@ -131,6 +307,7 @@ export default function BrowserScreen() {
         loading={loading}
         isBookmarked={Boolean(matchedBookmark)}
         showAddLiteApp={showAddLiteApp}
+        showSettings={Boolean(liteApp)}
         onClose={closeBrowser}
         onBack={() => webRef.current?.goBack()}
         onForward={() => webRef.current?.goForward()}
@@ -139,6 +316,7 @@ export default function BrowserScreen() {
           webRef.current?.reload();
         }}
         onToggleBookmark={toggleBookmark}
+        onOpenSettings={liteApp ? openLiteAppSettings : undefined}
         onAddLiteApp={
           showAddLiteApp ? () => setSheetOpen(true) : undefined
         }
@@ -164,9 +342,12 @@ export default function BrowserScreen() {
         </View>
       ) : (
         <WebView
+          key={`wv-${liteApp?.id ?? 'guest'}-${webviewEpoch}`}
           ref={webRef}
           source={{ uri: initialUrl }}
+          userAgent={userAgent}
           onNavigationStateChange={onNavChange}
+          onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
           onLoadStart={() => setLoading(true)}
           onLoadEnd={() => setLoading(false)}
           onError={(e) => {
@@ -191,6 +372,18 @@ export default function BrowserScreen() {
           )}
           allowsBackForwardNavigationGestures
           setSupportMultipleWindows={false}
+          thirdPartyCookiesEnabled={
+            settings.cookiesEnabled && !settings.blockThirdPartyCookies
+          }
+          sharedCookiesEnabled={settings.cookiesEnabled}
+          incognito={!settings.cookiesEnabled}
+          cacheEnabled={settings.cookiesEnabled && !settings.dataSaverEnabled}
+          mediaPlaybackRequiresUserAction={dataSaver.disableVideoAutoplay}
+          {...(Platform.OS === 'android'
+            ? { forceDarkOn: settings.theme === 'dark' }
+            : null)}
+          injectedJavaScript={webViewInjection || undefined}
+          injectedJavaScriptBeforeContentLoaded={webViewInjection || undefined}
           style={styles.webview}
         />
       )}
@@ -203,6 +396,13 @@ export default function BrowserScreen() {
         initialUrl={currentUrl}
         onCancel={() => setSheetOpen(false)}
         onConfirm={saveLiteApp}
+      />
+
+      <LiteAppSettingsDrawer
+        visible={settingsOpen}
+        app={liteApp}
+        onClose={() => setSettingsOpen(false)}
+        onClearWebsiteData={() => clearWebsiteData()}
       />
     </View>
   );

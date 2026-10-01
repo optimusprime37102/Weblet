@@ -9,4 +9,8 @@ export { CreateFab } from './CreateFab';
 export { ManageLiteAppDialog } from './ManageLiteAppDialog';
 export type { MenuAnchor } from './ManageLiteAppDialog';
 export { CreateLiteAppSheet } from './CreateLiteAppSheet';
+export {
+  LiteAppSettingsPanel,
+  LiteAppSettingsDrawer,
+} from './lite-app-settings';
 export { AnimatedSplash } from './AnimatedSplash';

@@ -25,6 +25,7 @@ type Props = {
   anchor: MenuAnchor | null;
   onCancel: () => void;
   onOpen: () => void;
+  onSettings: () => void;
   onBookmark: () => void;
   onAddToHomeScreen: () => void;
   onRemove: () => void;
@@ -39,11 +40,12 @@ export function ManageLiteAppDialog({
   anchor,
   onCancel,
   onOpen,
+  onSettings,
   onBookmark,
   onAddToHomeScreen,
   onRemove,
 }: Props) {
-  const { colors, isDark } = useApp();
+  const { colors } = useApp();
   const [menuHeight, setMenuHeight] = useState(0);
 
   useEffect(() => {
@@ -74,7 +76,7 @@ export function ManageLiteAppDialog({
 
   if (!app) return null;
 
-  const sheetBg = isDark ? '#1C2434' : '#FFFFFF';
+  const sheetBg = colors.surfaceSolid;
   const divider = colors.border;
 
   return (
@@ -117,6 +119,12 @@ export function ManageLiteAppDialog({
             label="Open"
             color={colors.text}
             onPress={onOpen}
+          />
+          <MenuItem
+            icon="settings-outline"
+            label="Settings"
+            color={colors.text}
+            onPress={onSettings}
           />
           <MenuItem
             icon="bookmark-outline"
