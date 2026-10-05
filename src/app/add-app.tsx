@@ -104,14 +104,14 @@ export default function AddAppScreen() {
       setSheetOpen(false);
       showToast(`${app.name} added`);
 
-      if (input.addToHomeScreen) {
-        await pinLiteAppToHome(app);
-      }
-
       if (router.canGoBack()) {
         router.back();
       } else {
         router.replace('/(tabs)');
+      }
+
+      if (input.addToHomeScreen) {
+        void pinLiteAppToHome(app);
       }
     } finally {
       setSaving(false);

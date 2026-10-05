@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   FlatList,
   Image,
@@ -11,9 +11,12 @@ import {
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { CatalogShimmer } from '@/components/Shimmer';
 import { useApp } from '@/context/AppContext';
 import {
+  getCachedCatalogSections,
   getCatalogSections,
+  prefetchCatalog,
   type CatalogApp,
   type CatalogSection,
 } from '@/services/catalog';
@@ -22,23 +25,62 @@ import { radius, spacing, typography } from '@/theme';
 import { showToast } from '@/utils/toast';
 
 export default function ReadyMadeScreen() {
-  const { colors, addLiteApp } = useApp();
+  const { colors, addLiteApp, ready } = useApp();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState('');
   const [addingId, setAddingId] = useState<string | null>(null);
+  const initialCached = getCachedCatalogSections('');
+  const [sections, setSections] = useState<CatalogSection[]>(
+    () => initialCached ?? []
+  );
+  const [loadingCatalog, setLoadingCatalog] = useState(() => !initialCached);
 
-  const sections = useMemo(() => getCatalogSections(query), [query]);
+  useEffect(() => {
+    if (!ready) return;
+    let cancelled = false;
+    const cachedForQuery = getCachedCatalogSections(query);
+
+    if (cachedForQuery) {
+      setSections(cachedForQuery);
+      setLoadingCatalog(false);
+      return;
+    }
+
+    // Fetch immediately — never wait for idle callbacks or the transition
+    // will finish before content starts loading (feels like a laggy open).
+    if (sections.length === 0) {
+      setLoadingCatalog(true);
+    }
+
+    const load = query ? getCatalogSections(query) : prefetchCatalog();
+    void load
+      .then((next) => {
+        if (!cancelled) setSections(next);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingCatalog(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, ready]);
 
   const handleSelect = async (item: CatalogApp) => {
     if (addingId) return;
     setAddingId(item.id);
     try {
-      const app = await addLiteApp({ name: item.name, url: item.url });
+      const app = await addLiteApp({
+        name: item.name,
+        url: item.url,
+        categoryId: item.categoryId,
+      });
       if (!app) return;
       showToast(`${app.name} added`);
-      await pinLiteAppToHome(app);
       router.back();
+      void pinLiteAppToHome(app);
     } finally {
       setAddingId(null);
     }
@@ -51,7 +93,7 @@ export default function ReadyMadeScreen() {
           styles.header,
           {
             paddingTop: insets.top + spacing.lg,
-            backgroundColor: colors.background,
+            backgroundColor: colors.surfaceSolid,
             borderBottomColor: colors.border,
           },
         ]}
@@ -59,7 +101,7 @@ export default function ReadyMadeScreen() {
         <Pressable
           onPress={() => router.back()}
           hitSlop={10}
-          style={[styles.iconBtn, { backgroundColor: colors.surfaceSolid }]}
+          style={[styles.iconBtn, { backgroundColor: colors.backgroundSecondary }]}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
@@ -70,7 +112,7 @@ export default function ReadyMadeScreen() {
           style={[
             styles.searchWrap,
             {
-              backgroundColor: colors.surfaceSolid,
+              backgroundColor: colors.backgroundSecondary,
               borderColor: colors.border,
             },
           ]}
@@ -88,32 +130,40 @@ export default function ReadyMadeScreen() {
         </View>
       </View>
 
-      <FlatList
-        data={sections}
-        keyExtractor={(item) => item.category}
-        contentContainerStyle={[
-          styles.list,
-          { paddingBottom: Math.max(insets.bottom, spacing.xxl) },
-        ]}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={[styles.emptyTitle, { color: colors.text }]}>
-              No matches
-            </Text>
-            <Text style={{ color: colors.textSecondary, ...typography.body }}>
-              Try another search term
-            </Text>
-          </View>
-        }
-        renderItem={({ item }) => (
-          <CategorySection
-            section={item}
-            onSelect={handleSelect}
-            busyId={addingId}
-          />
-        )}
-      />
+      {loadingCatalog ? (
+        <CatalogShimmer />
+      ) : (
+        <FlatList
+          data={sections}
+          keyExtractor={(item) => item.category}
+          contentContainerStyle={[
+            styles.list,
+            { paddingBottom: Math.max(insets.bottom, spacing.xxl) },
+          ]}
+          showsVerticalScrollIndicator={false}
+          initialNumToRender={2}
+          maxToRenderPerBatch={2}
+          windowSize={5}
+          removeClippedSubviews
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                No matches
+              </Text>
+              <Text style={{ color: colors.textSecondary, ...typography.body }}>
+                Try another search term
+              </Text>
+            </View>
+          }
+          renderItem={({ item }) => (
+            <CategorySection
+              section={item}
+              onSelect={handleSelect}
+              busyId={addingId}
+            />
+          )}
+        />
+      )}
     </View>
   );
 }

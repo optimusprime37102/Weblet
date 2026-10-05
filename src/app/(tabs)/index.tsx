@@ -1,6 +1,5 @@
 import React, { useRef, useState } from 'react';
 import {
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -78,33 +77,33 @@ export default function LiteAppsScreen() {
         }}
       />
 
-      <ScrollView
+      <LiteAppGrid
+        apps={liteApps}
+        onOpenApp={(app) => openBrowser(app)}
+        onLongPressApp={(app, anchor) => {
+          setManageApp(app);
+          setMenuAnchor(anchor);
+        }}
         contentContainerStyle={[
           styles.content,
           isEmpty && styles.contentEmpty,
         ]}
-        showsVerticalScrollIndicator={false}
-      >
-        <Text style={[styles.title, { color: colors.text }]}>Lite Apps</Text>
-        <View style={[styles.titleAccent, { backgroundColor: colors.primary }]} />
-
-        {isEmpty ? (
+        ListHeaderComponent={
+          <View>
+            <Text style={[styles.title, { color: colors.text }]}>Lite Apps</Text>
+            <View
+              style={[styles.titleAccent, { backgroundColor: colors.primary }]}
+            />
+          </View>
+        }
+        ListEmptyComponent={
           <View style={styles.emptyBody}>
             <Text style={[styles.emptyHint, { color: colors.textSecondary }]}>
               Tap Create to add your first Lite App
             </Text>
           </View>
-        ) : (
-          <LiteAppGrid
-            apps={liteApps}
-            onOpenApp={(app) => openBrowser(app)}
-            onLongPressApp={(app, anchor) => {
-              setManageApp(app);
-              setMenuAnchor(anchor);
-            }}
-          />
-        )}
-      </ScrollView>
+        }
+      />
 
       <CreateFab
         open={menuOpen}
@@ -134,7 +133,7 @@ export default function LiteAppsScreen() {
           if (!manageApp) return;
           const app = manageApp;
           closeManageMenu();
-          await addBookmark({ title: app.name, url: app.url });
+          await addBookmark({ title: app.name, url: app.url, liteAppId: app.id });
           showToast(`${app.name} bookmarked`);
         }}
         onAddToHomeScreen={async () => {
@@ -160,6 +159,7 @@ const styles = StyleSheet.create({
   content: {
     paddingTop: spacing.md,
     paddingBottom: spacing.xxxl + 80,
+    flexGrow: 1,
   },
   contentEmpty: {
     flexGrow: 1,
@@ -178,7 +178,6 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   emptyBody: {
-    flex: 1,
     minHeight: 220,
     alignItems: 'center',
     justifyContent: 'center',

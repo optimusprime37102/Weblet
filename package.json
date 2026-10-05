@@ -16,7 +16,8 @@
     "web": "expo start --web",
     "apk:debug": "npx eas-cli@latest build -p android --profile apk-debug --local",
     "apk:release": "npx eas-cli@latest build -p android --profile apk-release --local",
-    "aab": "npx eas-cli@latest build -p android --profile production --local"
+    "aab": "npx eas-cli@latest build -p android --profile production --local",
+    "lint": "expo lint"
   },
   "dependencies": {
     "@aun-abbas/expo-pin-shortcut": "^0.2.0",
@@ -30,6 +31,7 @@
     "expo-linking": "~57.0.11",
     "expo-router": "~57.0.23",
     "expo-splash-screen": "~57.0.9",
+    "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
     "react": "19.2.3",
@@ -44,6 +46,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "eslint": "^9.0.0",
+    "eslint-config-expo": "~57.0.2",
     "typescript": "~6.0.3"
   },
   "private": true

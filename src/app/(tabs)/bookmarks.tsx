@@ -35,7 +35,7 @@ export default function BookmarksScreen() {
         styles.screen,
         {
           backgroundColor: colors.background,
-          paddingTop: Math.max(insets.top, spacing.md),
+          paddingTop: insets.top + spacing.lg,
         },
       ]}
     >

@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
   AppState,
   BackHandler,
   Linking,
@@ -10,15 +9,17 @@ import {
   View,
   type AppStateStatus,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useNavigation, useRouter } from 'expo-router';
 import {
   WebView,
   type WebViewNavigation,
 } from 'react-native-webview';
 import { BrowserChrome } from '@/components/BrowserChrome';
 import { CreateLiteAppSheet } from '@/components/CreateLiteAppSheet';
+import { FullScreenControls } from '@/components/FullScreenControls';
 import { LiteAppSettingsDrawer } from '@/components/lite-app-settings';
 import { useApp } from '@/context/AppContext';
+import { db } from '@/db';
 import { exitAppCompletely } from '@/services/exitApp';
 import { pinLiteAppToHome } from '@/services/homeShortcut';
 import {
@@ -30,8 +31,10 @@ import {
   isSameSiteUrl,
 } from '@/services/liteAppSettings';
 import { getDisplayNameFromUrl, getHostname, normalizeUrl } from '@/utils/url';
+import { runWhenIdle } from '@/utils/runWhenIdle';
 import { showToast } from '@/utils/toast';
 import { spacing, typography } from '@/theme';
+
 
 function firstParam(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? '';
@@ -49,6 +52,7 @@ export default function BrowserScreen() {
     clearData?: string | string[];
   }>();
   const router = useRouter();
+  const navigation = useNavigation();
   const {
     colors,
     bookmarks,
@@ -56,6 +60,7 @@ export default function BrowserScreen() {
     addBookmark,
     removeBookmark,
     addLiteApp,
+    updateLiteApp,
   } = useApp();
   const webRef = useRef<WebView>(null);
 
@@ -65,6 +70,14 @@ export default function BrowserScreen() {
   const clearDataRequested = firstParam(params.clearData) === '1';
   const paramAppId = firstParam(params.appId);
   const showAddLiteApp = !fromSearch && !fromHome && !paramAppId;
+
+  useEffect(() => {
+    // Home-shortcut sessions shouldn't be dismissed by edge swipe.
+    navigation.setOptions({
+      gestureEnabled: !fromHome,
+      fullScreenGestureEnabled: !fromHome,
+    });
+  }, [navigation, fromHome]);
   const initialUrl = useMemo(
     () => normalizeUrl(firstParam(params.url) || 'https://www.google.com'),
     [params.url]
@@ -86,6 +99,7 @@ export default function BrowserScreen() {
   const userAgent = getUserAgent(settings.websiteMode);
   const dataSaver = getDataSaverFlags(settings);
   const webViewInjection = buildWebViewInjection(settings);
+  const isFullScreen = Boolean(liteApp && settings.fullScreenMode);
 
   const [currentUrl, setCurrentUrl] = useState(initialUrl);
   const [pageTitle, setPageTitle] = useState(
@@ -157,7 +171,9 @@ export default function BrowserScreen() {
   ]);
 
   useEffect(() => {
-    if (!fromHome) return;
+    // Home-shortcut and full-screen sessions need explicit back handling so
+    // WebView history still works when chrome (or swipe-dismiss) is unavailable.
+    if (!fromHome && !isFullScreen) return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       if (settingsOpen) {
         setSettingsOpen(false);
@@ -171,7 +187,7 @@ export default function BrowserScreen() {
       return true;
     });
     return () => sub.remove();
-  }, [fromHome, canGoBack, closeBrowser, settingsOpen]);
+  }, [fromHome, isFullScreen, canGoBack, closeBrowser, settingsOpen]);
 
   useEffect(() => {
     const onChange = (next: AppStateStatus) => {
@@ -231,11 +247,45 @@ export default function BrowserScreen() {
     return () => clearTimeout(timer);
   }, [clearDataRequested, clearWebsiteData, webviewEpoch]);
 
+  useEffect(() => {
+    if (!liteApp?.id) return;
+    return runWhenIdle(() => {
+      void db.touchLiteAppOpened(liteApp.id);
+    });
+  }, [liteApp?.id]);
+
+  useEffect(() => {
+    if (!currentUrl || currentUrl.startsWith('about:')) return;
+    let cancelIdle: (() => void) | undefined;
+    const timer = setTimeout(() => {
+      cancelIdle = runWhenIdle(() => {
+        void db.recordHistory({
+          title: pageTitle,
+          url: currentUrl,
+          liteAppId: liteApp?.id ?? null,
+        });
+      });
+    }, 1200);
+    return () => {
+      clearTimeout(timer);
+      cancelIdle?.();
+    };
+  }, [currentUrl, pageTitle, liteApp?.id]);
+
   const onNavChange = useCallback((nav: WebViewNavigation) => {
     setCurrentUrl(nav.url);
     setCanGoBack(nav.canGoBack);
     setCanGoForward(nav.canGoForward);
     if (nav.title) setPageTitle(nav.title);
+  }, []);
+
+  const onLoadStart = useCallback(() => {
+    // Thin chrome progress only — never cover the page (esp. back/forward).
+    setLoading(true);
+  }, []);
+
+  const onLoadEnd = useCallback(() => {
+    setLoading(false);
   }, []);
 
   const onShouldStartLoadWithRequest = useCallback(
@@ -280,6 +330,14 @@ export default function BrowserScreen() {
     setSettingsOpen(true);
   };
 
+  const exitFullScreen = useCallback(async () => {
+    if (!liteApp) return;
+    await updateLiteApp(liteApp.id, {
+      settings: { ...settings, fullScreenMode: false },
+    });
+    showToast('Full screen turned off');
+  }, [liteApp, settings, updateLiteApp]);
+
   const saveLiteApp = async (input: {
     name: string;
     url: string;
@@ -300,27 +358,35 @@ export default function BrowserScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.background }]}>
-      <BrowserChrome
-        title={pageTitle || getHostname(currentUrl)}
-        canGoBack={canGoBack}
-        canGoForward={canGoForward}
-        loading={loading}
-        isBookmarked={Boolean(matchedBookmark)}
-        showAddLiteApp={showAddLiteApp}
-        showSettings={Boolean(liteApp)}
-        onClose={closeBrowser}
-        onBack={() => webRef.current?.goBack()}
-        onForward={() => webRef.current?.goForward()}
-        onReload={() => {
-          setError(null);
-          webRef.current?.reload();
-        }}
-        onToggleBookmark={toggleBookmark}
-        onOpenSettings={liteApp ? openLiteAppSettings : undefined}
-        onAddLiteApp={
-          showAddLiteApp ? () => setSheetOpen(true) : undefined
-        }
-      />
+      {!isFullScreen ? (
+        <BrowserChrome
+          title={pageTitle || getHostname(currentUrl)}
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          loading={loading}
+          isBookmarked={Boolean(matchedBookmark)}
+          showAddLiteApp={showAddLiteApp}
+          showSettings={Boolean(liteApp)}
+          onClose={closeBrowser}
+          onBack={() => webRef.current?.goBack()}
+          onForward={() => webRef.current?.goForward()}
+          onReload={() => {
+            setError(null);
+            webRef.current?.reload();
+          }}
+          onToggleBookmark={toggleBookmark}
+          onOpenSettings={liteApp ? openLiteAppSettings : undefined}
+          onAddLiteApp={
+            showAddLiteApp ? () => setSheetOpen(true) : undefined
+          }
+        />
+      ) : (
+        <FullScreenControls
+          onClose={closeBrowser}
+          onExitFullScreen={exitFullScreen}
+          onOpenSettings={openLiteAppSettings}
+        />
+      )}
 
       {error ? (
         <View style={styles.errorWrap}>
@@ -348,8 +414,8 @@ export default function BrowserScreen() {
           userAgent={userAgent}
           onNavigationStateChange={onNavChange}
           onShouldStartLoadWithRequest={onShouldStartLoadWithRequest}
-          onLoadStart={() => setLoading(true)}
-          onLoadEnd={() => setLoading(false)}
+          onLoadStart={onLoadStart}
+          onLoadEnd={onLoadEnd}
           onError={(e) => {
             setLoading(false);
             setError(e.nativeEvent.description || 'Unknown error');
@@ -359,17 +425,8 @@ export default function BrowserScreen() {
               setError(`HTTP ${e.nativeEvent.statusCode}`);
             }
           }}
-          startInLoadingState
-          renderLoading={() => (
-            <View
-              style={[
-                styles.loading,
-                { backgroundColor: colors.background },
-              ]}
-            >
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
-          )}
+          // Avoid full-screen spinner on every history navigation — keeps back/forward smooth.
+          startInLoadingState={false}
           allowsBackForwardNavigationGestures
           setSupportMultipleWindows={false}
           thirdPartyCookiesEnabled={
@@ -414,11 +471,6 @@ const styles = StyleSheet.create({
   },
   webview: {
     flex: 1,
-  },
-  loading: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   errorWrap: {
     flex: 1,

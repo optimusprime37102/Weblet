@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LiteAppSettingsPanel } from '@/components/lite-app-settings';
 import { useApp } from '@/context/AppContext';
-import { spacing, typography } from '@/theme';
+import { radius, spacing, typography } from '@/theme';
 
 function firstParam(value: string | string[] | undefined): string {
   if (Array.isArray(value)) return value[0] ?? '';
@@ -30,19 +30,25 @@ export default function LiteAppSettingsScreen() {
         style={[
           styles.header,
           {
-            paddingTop: Math.max(insets.top, spacing.sm),
+            paddingTop: insets.top + spacing.lg,
             backgroundColor: colors.surfaceSolid,
             borderBottomColor: colors.border,
           },
         ]}
       >
-        <Pressable onPress={() => router.back()} style={styles.backBtn} hitSlop={8}>
-          <Ionicons name="chevron-back" size={24} color={colors.text} />
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={10}
+          style={[styles.iconBtn, { backgroundColor: colors.backgroundSecondary }]}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
           Lite App Settings
         </Text>
-        <View style={{ width: 36 }} />
+        <View style={styles.headerSpacer} />
       </View>
 
       {!app ? (
@@ -84,15 +90,20 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: spacing.sm,
+    gap: spacing.md,
+    paddingHorizontal: spacing.lg,
     paddingBottom: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  backBtn: {
-    width: 36,
-    height: 36,
+  iconBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.md,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  headerSpacer: {
+    width: 42,
   },
   headerTitle: {
     flex: 1,

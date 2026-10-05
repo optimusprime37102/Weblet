@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { radius, spacing, typography } from '@/theme';
 import { useApp } from '@/context/AppContext';
+import { prefetchCatalog } from '@/services/catalog';
+import { radius, spacing, typography } from '@/theme';
 
 const FAB_HEIGHT = 50;
 
@@ -20,6 +21,11 @@ export function CreateFab({
   onReadyMade,
 }: Props) {
   const { colors } = useApp();
+
+  // Warm catalog while the menu is open so Ready-made paints instantly.
+  useEffect(() => {
+    if (open) void prefetchCatalog();
+  }, [open]);
 
   // Tab screen content already sits above the tab bar — keep FAB just above it.
   const fabBottom = spacing.sm;
@@ -44,16 +50,17 @@ export function CreateFab({
               label="Create Your Own"
               icon="create-outline"
               onPress={() => {
-                onOpenChange(false);
+                // Navigate first so menu teardown doesn't delay the transition.
                 onCreateOwn();
+                onOpenChange(false);
               }}
             />
             <MenuItem
               label="Ready-made Lite Apps"
               icon="apps-outline"
               onPress={() => {
-                onOpenChange(false);
                 onReadyMade();
+                onOpenChange(false);
               }}
             />
           </View>

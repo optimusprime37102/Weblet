@@ -9,10 +9,15 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import { enableFreeze, enableScreens } from 'react-native-screens';
 import { AnimatedSplash } from '@/components/AnimatedSplash';
 import { AppProvider, useApp } from '@/context/AppContext';
 import { subscribeHomeShortcutLinks } from '@/services/deepLink';
+import { prefetchCatalog } from '@/services/catalog';
 import { BRAND_RED } from '@/theme';
+
+enableScreens(true);
+enableFreeze(true);
 
 // Keep the OS splash until JS can paint our animated splash (avoids a white flash).
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -66,6 +71,7 @@ function RootNavigator() {
 
   useEffect(() => {
     if (!ready) return;
+    void prefetchCatalog();
     return subscribeHomeShortcutLinks();
   }, [ready]);
 
@@ -80,34 +86,26 @@ function RootNavigator() {
             headerShown: false,
             contentStyle: { backgroundColor: colors.background },
             animation: 'slide_from_right',
+            animationDuration: 280,
+            freezeOnBlur: true,
+            gestureEnabled: true,
+            fullScreenGestureEnabled: true,
           }}
         >
           <Stack.Screen name="(tabs)" />
           <Stack.Screen
             name="browser"
             options={{
-              animation: 'none',
-              gestureEnabled: false,
+              // Fast fade keeps WebView mount off the critical path of a long slide.
+              animation: 'fade',
+              animationDuration: 180,
+              gestureEnabled: true,
+              fullScreenGestureEnabled: true,
             }}
           />
-          <Stack.Screen
-            name="add-app"
-            options={{
-              animation: 'slide_from_right',
-            }}
-          />
-          <Stack.Screen
-            name="ready-made"
-            options={{
-              animation: 'slide_from_right',
-            }}
-          />
-          <Stack.Screen
-            name="lite-app-settings"
-            options={{
-              animation: 'slide_from_right',
-            }}
-          />
+          <Stack.Screen name="add-app" />
+          <Stack.Screen name="ready-made" />
+          <Stack.Screen name="lite-app-settings" />
         </Stack>
       ) : null}
 

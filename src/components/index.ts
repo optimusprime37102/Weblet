@@ -4,6 +4,7 @@ export { LiteAppGrid } from './LiteAppGrid';
 export { LiteAppIcon, AddAppTile } from './LiteAppIcon';
 export { EmptyState } from './EmptyState';
 export { BrowserChrome } from './BrowserChrome';
+export { FullScreenControls } from './FullScreenControls';
 export { BookmarkRow } from './BookmarkRow';
 export { CreateFab } from './CreateFab';
 export { ManageLiteAppDialog } from './ManageLiteAppDialog';

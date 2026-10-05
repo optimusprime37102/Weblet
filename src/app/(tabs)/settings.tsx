@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Alert,
+  Linking,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -13,6 +14,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/context/AppContext';
 import type { ThemeMode } from '@/types';
 import { radius, spacing, typography } from '@/theme';
+
+const PRIVACY_POLICY_URL = 'https://weblet-privacy-trzm.vercel.app/';
 
 const THEME_OPTIONS: Array<{
   value: ThemeMode;
@@ -60,12 +63,16 @@ export default function SettingsScreen() {
     );
   };
 
+  const openPrivacyPolicy = () => {
+    void Linking.openURL(PRIVACY_POLICY_URL);
+  };
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.background }}
       contentContainerStyle={[
         styles.content,
-        { paddingTop: Math.max(insets.top, spacing.md) },
+        { paddingTop: insets.top + spacing.lg },
       ]}
     >
       <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
@@ -198,10 +205,20 @@ export default function SettingsScreen() {
           { backgroundColor: colors.surfaceSolid, borderColor: colors.border },
         ]}
       >
-        <View style={[styles.row, styles.staticRow]}>
-          <Text style={[styles.rowLabel, { color: colors.text }]}>Weblet</Text>
-          <Text style={{ color: colors.textSecondary }}>v1.0.0</Text>
-        </View>
+        <Pressable
+          onPress={openPrivacyPolicy}
+          style={styles.row}
+          accessibilityRole="link"
+          accessibilityLabel="Privacy Policy"
+        >
+          <View style={styles.rowLeft}>
+            <Ionicons name="shield-checkmark-outline" size={20} color={colors.text} />
+            <Text style={[styles.rowLabel, { color: colors.text }]}>
+              Privacy Policy
+            </Text>
+          </View>
+          <Ionicons name="open-outline" size={18} color={colors.textMuted} />
+        </Pressable>
         <Text
           style={[
             styles.about,
@@ -215,6 +232,10 @@ export default function SettingsScreen() {
           keep your favorite sites one tap away.
         </Text>
       </View>
+
+      <Text style={[styles.version, { color: colors.textMuted }]}>
+        Version 1.0.0
+      </Text>
     </ScrollView>
   );
 }
@@ -270,5 +291,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.lg,
     paddingTop: spacing.md,
     borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  version: {
+    ...typography.caption,
+    textAlign: 'center',
+    marginTop: spacing.xl,
+    marginBottom: spacing.md,
   },
 });

@@ -66,6 +66,12 @@
             "backgroundColor": "#F9343E"
           }
         }
+      ],
+      [
+        "expo-sqlite",
+        {
+          "enableFTS": true
+        }
       ]
     ],
     "experiments": {

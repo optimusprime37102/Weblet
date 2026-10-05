@@ -9,6 +9,7 @@ export const DEFAULT_LITE_APP_SETTINGS: LiteAppSettings = {
   websiteMode: 'mobile',
   theme: 'follow',
   externalLinks: 'browser',
+  fullScreenMode: false,
   cookiesEnabled: true,
   clearDataOnClose: false,
   blockThirdPartyCookies: false,

@@ -1,3 +1,7 @@
+/**
+ * Legacy AsyncStorage helpers — kept only for the one-time SQLite migration
+ * in `src/db/migrateAsyncStorage.ts`. Prefer `@/db` for all app reads/writes.
+ */
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { AppSettings, Bookmark, LiteApp } from '@/types';
 

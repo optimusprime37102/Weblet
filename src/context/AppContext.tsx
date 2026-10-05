@@ -9,14 +9,7 @@ import React, {
 import { useColorScheme } from 'react-native';
 import type { AppSettings, Bookmark, LiteApp, ThemeMode } from '@/types';
 import { lightColors, darkColors, type AppColors } from '@/theme';
-import { storage } from '@/services/storage';
-import { getFaviconUrl } from '@/services/favicon';
-import {
-  DEFAULT_LITE_APP_SETTINGS,
-  withDefaultSettings,
-} from '@/services/liteAppSettings';
-import { createId } from '@/utils/id';
-import { getDisplayNameFromUrl, normalizeUrl } from '@/utils/url';
+import { db } from '@/db';
 
 type AppContextValue = {
   ready: boolean;
@@ -26,12 +19,22 @@ type AppContextValue = {
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   liteApps: LiteApp[];
   bookmarks: Bookmark[];
-  addLiteApp: (input: { name?: string; url: string }) => Promise<LiteApp | null>;
+  addLiteApp: (input: {
+    name?: string;
+    url: string;
+    categoryId?: string | null;
+  }) => Promise<LiteApp | null>;
   removeLiteApp: (id: string) => Promise<void>;
   updateLiteApp: (id: string, patch: Partial<LiteApp>) => Promise<void>;
-  addBookmark: (input: { title?: string; url: string }) => Promise<Bookmark | null>;
+  addBookmark: (input: {
+    title?: string;
+    url: string;
+    liteAppId?: string | null;
+  }) => Promise<Bookmark | null>;
   removeBookmark: (id: string) => Promise<void>;
   clearAllData: () => Promise<void>;
+  refreshLiteApps: () => Promise<void>;
+  refreshBookmarks: () => Promise<void>;
 };
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -43,37 +46,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
   const [settings, setSettings] = useState<AppSettings>({ themeMode: 'system' });
 
+  const refreshLiteApps = useCallback(async () => {
+    setLiteApps(await db.getLiteApps());
+  }, []);
+
+  const refreshBookmarks = useCallback(async () => {
+    setBookmarks(await db.getBookmarks());
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
     (async () => {
-      const [apps, marks, savedSettings, clearedSeeded] = await Promise.all([
-        storage.getLiteApps(),
-        storage.getBookmarks(),
-        storage.getSettings(),
-        storage.getClearedSeededApps(),
-      ]);
-
-      // One-time wipe of old starter / leftover apps so first open is empty.
-      let nextApps = apps;
-      if (!clearedSeeded) {
-        nextApps = [];
-        await storage.setLiteApps(nextApps);
-        await storage.setClearedSeededApps();
+      try {
+        await db.init();
+        const [apps, marks, savedSettings] = await Promise.all([
+          db.getLiteApps(),
+          db.getBookmarks(),
+          db.getSettings(),
+        ]);
+        if (!mounted) return;
+        setLiteApps(apps);
+        setBookmarks(marks);
+        setSettings(savedSettings);
+      } finally {
+        if (mounted) setReady(true);
       }
-
-      if (!mounted) return;
-      const normalizedApps = nextApps.map(withDefaultSettings);
-      const needsPersist = normalizedApps.some(
-        (app, i) => !nextApps[i]?.settings
-      );
-      if (needsPersist) {
-        await storage.setLiteApps(normalizedApps);
-      }
-      setLiteApps(normalizedApps);
-      setBookmarks(marks);
-      setSettings(savedSettings);
-      setReady(true);
     })();
 
     return () => {
@@ -86,115 +84,69 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     (settings.themeMode === 'system' && systemScheme === 'dark');
   const colors = isDark ? darkColors : lightColors;
 
-  const persistApps = useCallback(async (next: LiteApp[]) => {
-    setLiteApps(next);
-    await storage.setLiteApps(next);
-  }, []);
-
-  const persistBookmarks = useCallback(async (next: Bookmark[]) => {
-    setBookmarks(next);
-    await storage.setBookmarks(next);
-  }, []);
-
   const addLiteApp = useCallback(
-    async (input: { name?: string; url: string }) => {
-      const url = normalizeUrl(input.url);
-      if (!url) return null;
-
-      const exists = liteApps.some(
-        (app) => app.url.replace(/\/$/, '') === url.replace(/\/$/, '')
-      );
-      if (exists) {
-        return liteApps.find(
-          (app) => app.url.replace(/\/$/, '') === url.replace(/\/$/, '')
-        )!;
-      }
-
-      const app: LiteApp = {
-        id: createId('app'),
-        name: input.name?.trim() || getDisplayNameFromUrl(url),
-        url,
-        favicon: getFaviconUrl(url),
-        createdAt: Date.now(),
-        settings: { ...DEFAULT_LITE_APP_SETTINGS },
-      };
-
-      await persistApps([app, ...liteApps]);
+    async (input: {
+      name?: string;
+      url: string;
+      categoryId?: string | null;
+    }) => {
+      const app = await db.addLiteApp(input);
+      if (!app) return null;
+      setLiteApps((prev) => {
+        if (prev.some((item) => item.id === app.id)) return prev;
+        return [app, ...prev];
+      });
       return app;
     },
-    [liteApps, persistApps]
+    []
   );
 
-  const removeLiteApp = useCallback(
-    async (id: string) => {
-      await persistApps(liteApps.filter((app) => app.id !== id));
-    },
-    [liteApps, persistApps]
-  );
+  const removeLiteApp = useCallback(async (id: string) => {
+    await db.removeLiteApp(id);
+    setLiteApps((prev) => prev.filter((app) => app.id !== id));
+  }, []);
 
   const updateLiteApp = useCallback(
     async (id: string, patch: Partial<LiteApp>) => {
-      await persistApps(
-        liteApps.map((app) => {
-          if (app.id !== id) return app;
-          const next = { ...app, ...patch };
-          if (patch.settings) {
-            next.settings = {
-              ...DEFAULT_LITE_APP_SETTINGS,
-              ...app.settings,
-              ...patch.settings,
-            };
-          }
-          return withDefaultSettings(next);
-        })
+      const updated = await db.updateLiteApp(id, patch);
+      if (!updated) return;
+      setLiteApps((prev) =>
+        prev.map((app) => (app.id === id ? updated : app))
       );
     },
-    [liteApps, persistApps]
+    []
   );
 
   const addBookmark = useCallback(
-    async (input: { title?: string; url: string }) => {
-      const url = normalizeUrl(input.url);
-      if (!url) return null;
-
-      const exists = bookmarks.some(
-        (b) => b.url.replace(/\/$/, '') === url.replace(/\/$/, '')
-      );
-      if (exists) {
-        return bookmarks.find(
-          (b) => b.url.replace(/\/$/, '') === url.replace(/\/$/, '')
-        )!;
-      }
-
-      const bookmark: Bookmark = {
-        id: createId('bm'),
-        title: input.title?.trim() || getDisplayNameFromUrl(url),
-        url,
-        favicon: getFaviconUrl(url),
-        createdAt: Date.now(),
-      };
-
-      await persistBookmarks([bookmark, ...bookmarks]);
+    async (input: {
+      title?: string;
+      url: string;
+      liteAppId?: string | null;
+    }) => {
+      const bookmark = await db.addBookmark(input);
+      if (!bookmark) return null;
+      setBookmarks((prev) => {
+        if (prev.some((item) => item.id === bookmark.id)) return prev;
+        return [bookmark, ...prev];
+      });
       return bookmark;
     },
-    [bookmarks, persistBookmarks]
+    []
   );
 
-  const removeBookmark = useCallback(
-    async (id: string) => {
-      await persistBookmarks(bookmarks.filter((b) => b.id !== id));
-    },
-    [bookmarks, persistBookmarks]
-  );
+  const removeBookmark = useCallback(async (id: string) => {
+    await db.removeBookmark(id);
+    setBookmarks((prev) => prev.filter((b) => b.id !== id));
+  }, []);
 
   const setThemeMode = useCallback(async (mode: ThemeMode) => {
     const next = { themeMode: mode };
     setSettings(next);
-    await storage.setSettings(next);
+    await db.setThemeMode(mode);
   }, []);
 
   const clearAllData = useCallback(async () => {
-    await storage.clearAll();
+    await db.clearAllUserData();
     setLiteApps([]);
     setBookmarks([]);
     setSettings({ themeMode: 'system' });
@@ -215,6 +167,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addBookmark,
       removeBookmark,
       clearAllData,
+      refreshLiteApps,
+      refreshBookmarks,
     }),
     [
       ready,
@@ -230,6 +184,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       addBookmark,
       removeBookmark,
       clearAllData,
+      refreshLiteApps,
+      refreshBookmarks,
     ]
   );
 

@@ -114,6 +114,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.xs,
     marginBottom: spacing.xl,
+    // FlatList grids often pass an explicit width override.
   },
   pressed: {
     opacity: 0.72,

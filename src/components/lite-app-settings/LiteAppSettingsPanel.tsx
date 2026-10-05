@@ -13,6 +13,7 @@ import {
   AppHero,
   AutoRefreshSection,
   DataSaverSection,
+  DisplaySection,
   ExternalLinksSection,
   PrivacySection,
   ThemeSection,
@@ -47,6 +48,7 @@ export function LiteAppSettingsPanel({
     >
       <AppHero app={app} />
       <WebsiteModeSection settings={settings} onChange={patchSettings} />
+      <DisplaySection settings={settings} onChange={patchSettings} />
       <ThemeSection settings={settings} onChange={patchSettings} />
       <ExternalLinksSection settings={settings} onChange={patchSettings} />
       <PrivacySection
